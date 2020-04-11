@@ -38,6 +38,7 @@ executables:
     ghc-options:
     - -Wall
     - -main-is TestAOP
+    - -O3
     dependencies:
     - effev
 
@@ -46,6 +47,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestQueens
+    - -O3
     dependencies:
     - effev
 
@@ -54,6 +56,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestState
+    - -O3
     dependencies:
     - effev
 
