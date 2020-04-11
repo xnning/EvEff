@@ -1,0 +1,65 @@
+name:                effev
+version:             0.1.0.0
+github:              "githubuser/effev"
+license:             BSD3
+author:              "Daan Leijen, Ningning Xie"
+maintainer:          "example@example.com"
+copyright:           "2020 Daan Leijen, Ningning Xie"
+
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on GitHub at <https://github.com/githubuser/effev#readme>
+
+dependencies:
+- base >= 4.7 && < 5
+- primitive
+- ghc-prim
+- criterion
+- random
+- containers
+- mtl
+
+library:
+  source-dirs: src
+
+executables:
+  TestAOP:
+    main:                TestAOP.hs
+    source-dirs:         app
+    ghc-options:
+    - -Wall
+    - -main-is TestAOP
+    dependencies:
+    - effev
+
+  TestQueens:
+    main:                TestQueens.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestQueens
+    dependencies:
+    - effev
+
+  TestState:
+    main:                TestState.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestState
+    dependencies:
+    - effev
+
+tests:
+  effev-test:
+    main:                Spec.hs
+    source-dirs:         test
+    dependencies:
+    - effev
