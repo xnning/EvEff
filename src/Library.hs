@@ -2,6 +2,7 @@
 module Library where
 
 import Prelude
+import Ctl
 import EffEvScoped
 import GHC.Prim
 import GHC.Exts
@@ -55,8 +56,59 @@ lstate init action
                     put_ = opTail (\x -> localSet l x) }
     in handle h action
 
+hlocal :: p -> (Local p -> h e ans) -> Eff (h :* e) ans -> Eff e ans
+hlocal init hcreate action
+  = local init $ \l -> handle (hcreate l) action
+
+
+lstate' init
+  = hlocal init $ \l ->
+    State { get_ = opTail (\x -> localGet l x),
+            put_ = opTail (\x -> localSet l x) }
+
+{-
+safeLocalGet :: Local s a -> Eff e a
+loc :: exists s. Local s Integer
+(\x -> safeLocalGet loc + x) :: Int -> Eff e Int
+-}
+{-
+
+newtype SLocal s a = SLocal (Local a)
+
+slocalGet :: SLocal s a -> a -> Eff (Localized s :* e) a
+slocalGet (SLocal l) x = localGet l x
+slocalSet (SLocal l) x = localSet l x
+
+data Localized s e ans = Localized
+
+slocal :: a -> (forall s. SLocal s a -> Eff e b) -> Eff e b
+slocal init action = Eff (\w -> mlocal init (\l ->
+                                mprompt $ \m ->
+                                under w (action (SLocal l))))
+
+unlocalize :: (h (Localized s :* e) ans) -> h e ans
+
+hslocal :: p -> (forall s. SLocal s p -> h (Localized s :* e) ans) -> Eff (h :* e) ans -> Eff e ans
+hslocal init hcreate action
+  = slocal init $ \l -> handle (unlocalize (hcreate l)) action
+
+
+
+
+data LEvil e ans = LEvil { leak :: !(Op () (Int -> Eff () Int) e ans) }
+
+levil init
+  = hslocal init $ \l ->
+    LEvil { leak = opTail (\x -> return (\x -> slocalGet l x))}
+
+weird :: Int -> Int
+weird n = erun $
+          do f <- levil 42 $ perform leak ()
+             f 1
+
+-}
 lCount :: Int -> Int
-lCount n = erun $ lstate n $
+lCount n = erun $ lstate' n $
            do x <- runCount ()
               return x
 
@@ -68,30 +120,32 @@ main = do let x = lCount (10^6)
 ------------------------------------
 -- Parameterized handler
 -------------------------------------
-newtype Parameter a = Parameter (Local a)
+newtype Parameter s a = Parameter (Local a)
 
-pNormal :: Parameter p -> (a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans
+pNormal :: Parameter s p -> (a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans
 pNormal (Parameter p) op
   = Normal (\x k -> do vx <- localGet p x
                        let kp (y,vy) = do{ localSet p vy; k y }
                        op x vx kp)
 
-pTail :: Parameter p -> (a -> p -> Eff e (b,p)) -> Op a b e ans
+pTail :: Parameter s p -> (a -> p -> Eff e (b,p)) -> Op a b e ans
 pTail (Parameter p) op
  = opTail (\x -> do vx <- localGet p x
                     (y,vy) <- op x vx
                     localSet p vy
                     return y)
 
-phandle :: (Parameter p -> h e ans) -> p -> Eff (h :* e) ans -> Eff e ans
+phandle :: (forall s. Parameter s p -> h e ans) -> p -> Eff (h :* e) ans -> Eff e ans
 phandle hcreate init action
   = local init $ \local ->
     let p = Parameter local
     in handle (hcreate p) action
 
-pstate :: Parameter a -> State a e ans
+------
+pstate :: Parameter s a -> State a e ans
 pstate p = State { get_ = pTail p (\() v -> return (v,v)),
                    put_ = pTail p (\x v  -> return ((),x)) }
+
 
 pCount :: Int -> Int
 pCount n = erun $

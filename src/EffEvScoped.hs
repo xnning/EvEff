@@ -32,7 +32,7 @@ module EffEvScoped(
             , localSet
 
             -- just for EffEvScopedOP
-            , Context
+            , Context(..)
             , SubContext(..), withSubContext
             , under, guard
             , Eff(..)
