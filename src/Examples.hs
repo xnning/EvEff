@@ -7,7 +7,7 @@ import EffEvScopedOP
 -- BEGIN:reader
 data Reader a e ans = Reader { ask :: Op () a e ans }
 
-reader :: a -> Eff (Reader a :* e) ans -> Eff e ans  
+reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
 reader x = handler $ Reader{ ask = opTail (\ () -> return x) }
 -- END:reader
 
@@ -43,7 +43,7 @@ data State a e ans = State { get :: Op () a e ans, put :: Op a () e ans }
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handleLocal init $ \loc ->
-    State{ get = opTail (\() -> localGet loc ()),
+    State{ get = opTail (\() -> localGet loc init),
            put = opTail (\x -> localSet loc x)   }
 -- END:state
 
@@ -78,7 +78,7 @@ data Output e ans = Output { out :: Op String () e ans }
 
 output :: Eff (Output :* e) ans -> Eff e (ans,String)
 output
-  = handleLocalRet [] (\ss x -> (x,concat ss)) $ \loc ->
+  = handleLocalRet [] (\x ss -> (x,concat ss)) $ \loc ->
     Output { out = opTail (\x -> localUpdate loc (x:)) }
 
 collect = output $
@@ -105,9 +105,9 @@ handleLocal :: a -> (Local a -> h e ans) -> Eff (h :* e) ans -> Eff e ans
 handleLocal init hcreate action
     = local init (\loc -> handle (hcreate loc) action)
 
-handleLocalRet :: a -> (a -> b -> ans) -> (Local a -> h e ans) -> Eff (h :* e) b -> Eff e ans
+handleLocalRet :: a -> (b -> a -> ans) -> (Local a -> h e ans) -> Eff (h :* e) b -> Eff e ans
 handleLocalRet init ret hcreate action
-    = local init (\loc -> handle (hcreate loc) (do x <- action; l <- localGet loc init; return (ret l x)))
+    = local init (\loc -> handle (hcreate loc) (do x <- action; l <- localGet loc init; return (ret x l)))
 -- END:util
 
 -- BEGIN:handleParam
