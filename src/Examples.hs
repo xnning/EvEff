@@ -1,4 +1,4 @@
-{-# LANGUAGE  ExistentialQuantification, TypeOperators, FlexibleContexts, Rank2Types, PartialTypeSignatures #-}
+{-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  #-}
 -- Nice Examples for the paper
 import EffEvScopedOP
 
