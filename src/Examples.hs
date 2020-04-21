@@ -24,7 +24,7 @@ except :: Eff (Exn :* e) ans -> Eff e (Maybe ans)
 except = handlerRet Just $ Exn{ failure = opNormal (\() resume -> return Nothing) }
 -- END:exn
 
--- BEGIN:exn-ex
+-- BEGIN:exnex
 safeDiv :: (Exn :? e) => Int -> Int -> Eff e Int
 safeDiv x 0 = perform failure ()
 safeDiv x y = return (x `div` y)
@@ -34,7 +34,7 @@ divide = reader "world" $
          do z <- safeDiv 42 0
             s <- perform ask ()
             return ("hello " ++ s ++ show z)
--- END:exn-ex
+-- END:exnex
 
 
 -- BEGIN:state
@@ -47,7 +47,7 @@ state init
            put = opTail (\x -> localSet loc x)   }
 -- END:state
 
--- BEGIN:state-ex
+-- BEGIN:stateex
 add :: (State Int :? e) => Int -> Eff e Int
 add i = do j <- perform get ()
            perform put (i + j)
@@ -57,7 +57,7 @@ adder = state (1::Int) $
         do add 41
            i <- perform get ()
            return ("the final state is: " ++ show (i::Int))
--- END:state-ex
+-- END:stateex
 
 
 -- BEGIN:pstate
