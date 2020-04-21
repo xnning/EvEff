@@ -7,15 +7,15 @@ import EffEvScopedOP
 -- BEGIN:reader
 data Reader a e ans = Reader { ask :: Op () a e ans }
 
-reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
-reader x = handler $ Reader{ ask = opTail (\() -> return x) }
+reader :: a -> Eff (Reader a :* e) ans -> Eff e ans  
+reader x = handler $ Reader{ ask = opTail (\ () -> return x) }
 -- END:reader
 
--- BEGIN:reader-ex
+-- BEGIN:readerex
 hello = reader "world" $
         do s <- perform ask ()
            return ("hello " ++ s)
--- END:reader-ex
+-- END:readerex
 
 -- BEGIN:exn
 data Exn e ans = Exn { failure :: forall a. Op () a e ans }
