@@ -16,17 +16,21 @@ reader x = handler $ Reader{ ask = operation (\ () resume -> resume x) }
 -- when to introduce function
 -- show type of: handler :: h e ans -> Eff (h :* e) -> Eff e
 
--- BEGIN:readerex
+-- BEGIN:readerex1
 sample1 = reader "world" $
           do s <- perform ask ()
              return ("hello " ++ s)
+-- END:readerex1
 
+-- BEGIN:readerex
 hello :: (Reader String :? e) => Eff e String
+-- BEGIN:hello
+helloWorld = reader "world" $
+             do hello
+
 hello = do s <- perform ask ()
            return ("hello " ++ s)
-
-sample2  = reader "world" $
-           do hello
+-- END:hello
 -- END:readerex
 
 -- BEGIN:exn
