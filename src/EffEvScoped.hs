@@ -103,6 +103,7 @@ class In h e where
 instance (InEq (HEqual h h') h h' w) => In h (h' :* w)  where
   subContext = subContextEq
 
+
 type family HEqual (h :: * -> * -> *) (h' :: * -> * -> *) :: Bool where
   HEqual h h  = 'True
   HEqual h h' = 'False

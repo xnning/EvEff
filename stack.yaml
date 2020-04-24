@@ -6,3 +6,5 @@ extra-deps: []
 flags: {}
 
 extra-package-dbs: []
+
+arch: x86_64

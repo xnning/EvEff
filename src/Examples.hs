@@ -2,26 +2,38 @@
 -- Nice Examples for the paper
 import EffEvScopedOP
 
-
+operation op = opNormal op
+function f   = opTail f
+value x      = function (\() -> return x)
 
 -- BEGIN:reader
 data Reader a e ans = Reader { ask :: Op () a e ans }
 
 reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
-reader x = handler $ Reader{ ask = opTail (\ () -> return x) }
+reader x = handler $ Reader{ ask = operation (\ () resume -> resume x) }
 -- END:reader
 
+-- when to introduce function
+-- show type of: handler :: h e ans -> Eff (h :* e) -> Eff e
+
 -- BEGIN:readerex
-hello = reader "world" $
-        do s <- perform ask ()
+sample1 = reader "world" $
+          do s <- perform ask ()
+             return ("hello " ++ s)
+
+hello :: (Reader String :? e) => Eff e String
+hello = do s <- perform ask ()
            return ("hello " ++ s)
+
+sample2  = reader "world" $
+           do hello
 -- END:readerex
 
 -- BEGIN:exn
 data Exn e ans = Exn { failure :: forall a. Op () a e ans }
 
-except :: Eff (Exn :* e) ans -> Eff e (Maybe ans)
-except = handlerRet Just $ Exn{ failure = opNormal (\() resume -> return Nothing) }
+except :: Eff (Exn :* e) (Maybe ans) -> Eff e (Maybe ans)
+except = handler $ Exn{ failure = operation (\ () resume -> return Nothing) }
 -- END:exn
 
 -- BEGIN:exnex
@@ -29,13 +41,18 @@ safeDiv :: (Exn :? e) => Int -> Int -> Eff e Int
 safeDiv x 0 = perform failure ()
 safeDiv x y = return (x `div` y)
 
-divide = reader "world" $
-         except $
-         do z <- safeDiv 42 0
-            s <- perform ask ()
-            return ("hello " ++ s ++ show z)
+safeHead :: (Exn :? e) => String -> Eff e Char
+safeHead []    = perform failure ()
+safeHead (x:_) = return x
+
+sample3 = reader "" $
+          except $
+          do s <- perform ask ()
+             c <- safeHead s
+             return (Just c)
 -- END:exnex
 
+-- introduce handlerRet
 
 -- BEGIN:state
 data State a e ans = State { get :: Op () a e ans, put :: Op a () e ans }
@@ -43,8 +60,8 @@ data State a e ans = State { get :: Op () a e ans, put :: Op a () e ans }
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handleLocal init $ \loc ->
-    State{ get = opTail (\() -> localGet loc init),
-           put = opTail (\x -> localSet loc x)   }
+    State{ get = function (\() -> localGet loc init),
+           put = function (\x -> localSet loc x)   }
 -- END:state
 
 -- BEGIN:stateex
@@ -63,9 +80,9 @@ adder = state (1::Int) $
 -- BEGIN:pstate
 pstate :: a -> Eff (State a :* e) ans -> Eff e ans
 pstate init
-  = handleParam init $ \opTail opNormal ->
-    State{ get = opTail (\() p -> return (p,p)),
-           put = opTail (\x p  -> return ((),x))  }
+  = handleParam init $ \function operation ->
+    State{ get = function (\() p -> return (p,p)),
+           put = function (\x p  -> return ((),x))  }
 
 padder = pstate (1::Int) $
          do add 41
