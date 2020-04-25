@@ -8,10 +8,14 @@ value x      = function (\() -> return x)
 
 -- BEGIN:reader
 data Reader a e ans = Reader { ask :: Op () a e ans }
-
-reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
-reader x = handler $ Reader{ ask = operation (\ () resume -> resume x) }
 -- END:reader
+hr :: Reader a e ans 
+hr = Reader{ ask= operation (\ () resume → resume x) }
+-- BEGIN:readerh
+reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
+reader x action 
+  = handler hr action
+-- END:readerh
 
 -- when to introduce function
 -- show type of: handler :: h e ans -> Eff (h :* e) -> Eff e
@@ -25,11 +29,11 @@ sample1 = reader "world" $
 -- BEGIN:readerex
 hello :: (Reader String :? e) => Eff e String
 -- BEGIN:hello
-helloWorld = reader "world" $
-             do hello
-
 hello = do s <- perform ask ()
            return ("hello " ++ s)
+
+helloWorld = reader "world" $
+             do hello
 -- END:hello
 -- END:readerex
 
