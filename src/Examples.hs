@@ -9,12 +9,16 @@ value x      = function (\() -> return x)
 -- BEGIN:reader
 data Reader a e ans = Reader { ask :: Op () a e ans }
 -- END:reader
-hr :: Reader a e ans 
-hr = Reader{ ask= operation (\ () resume → resume x) }
+
+-- BEGIN:readerhr
+hr :: a -> Reader a e ans 
+hr x = Reader{ ask = operation (\ () resume -> resume x) }
+-- END:readerhr
+
 -- BEGIN:readerh
 reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
 reader x action 
-  = handler hr action
+  = handler (hr x) action
 -- END:readerh
 
 -- when to introduce function
@@ -26,15 +30,16 @@ sample1 = reader "world" $
              return ("hello " ++ s)
 -- END:readerex1
 
--- BEGIN:readerex
-hello :: (Reader String :? e) => Eff e String
--- BEGIN:hello
-hello = do s <- perform ask ()
+-- BEGIN:readergreet
+greet :: (Reader String :? e) => Eff e String
+greet = do s <- perform ask ()
            return ("hello " ++ s)
+-- END:readergreet
 
+-- BEGIN:readerex
+helloWorld :: Eff e String
 helloWorld = reader "world" $
-             do hello
--- END:hello
+             do greet
 -- END:readerex
 
 -- BEGIN:exn
