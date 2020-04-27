@@ -12,7 +12,8 @@ data Reader a e ans = Reader { ask :: Op () a e ans }
 
 -- BEGIN:readerhr
 hr :: a -> Reader a e ans 
-hr x = Reader{ ask = operation (\ () resume -> resume x) }
+hr x = Reader{ ask = operation
+                      (\ () resume -> resume x) }
 -- END:readerhr
 
 -- BEGIN:readerh
