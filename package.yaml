@@ -36,7 +36,6 @@ executables:
     main:                TestAOP.hs
     source-dirs:         app
     ghc-options:
-    - -Wall
     - -main-is TestAOP
     - -O3
     dependencies:
