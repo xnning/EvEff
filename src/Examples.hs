@@ -44,7 +44,8 @@ helloWorld = reader "world" $
 -- END:readerex
 
 -- BEGIN:exn
-data Exn e ans = Exn { failure :: forall a. Op () a e ans }
+data Exn e ans
+     = Exn { failure :: forall a. Op () a e ans }
 -- END:exn
 
 -- BEGIN:exceptMaybe
@@ -131,6 +132,30 @@ collect = output $
 -- END:output
 
 
+-- BEGIN:amb
+data Amb e ans
+     = Amb { choose :: forall b. Op (b, b) b e ans }
+-- END:amb
+
+-- BEGIN:allresults
+allResults :: Eff (Amb :* e) a -> Eff e [a]
+allResults = handlerRet (\x -> [x])
+   Amb{ choose = operation (\ (x, y) k ->
+                                do xs <- k x
+                                   ys <- k y
+                                   return (xs ++ ys)
+                              )}
+-- END:allresults
+
+-- BEGIN:backtrack
+backtrack :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
+backtrack = handler
+  Amb{ choose = operation (\ (x, y) k ->
+                             do xs <- k x
+                                case xs of
+                                  Just _  -> return xs
+                                  Nothing -> k y) }
+-- END:backtrack
 
 
 -- BEGIN:util
