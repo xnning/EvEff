@@ -45,10 +45,19 @@ helloWorld = reader "world" $
 
 -- BEGIN:exn
 data Exn e ans = Exn { failure :: forall a. Op () a e ans }
-
-except :: Eff (Exn :* e) (Maybe ans) -> Eff e (Maybe ans)
-except = handler $ Exn{ failure = operation (\ () resume -> return Nothing) }
 -- END:exn
+
+-- BEGIN:exceptMaybe
+except :: Eff (Exn :* e) a -> Eff e (Maybe a)
+except = handlerRet Just $
+         Exn{ failure = operation (\ () _ -> return Nothing) }
+-- END:exceptMaybe
+
+-- BEGIN:exceptDefault
+exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a
+exceptDefault x = handler $
+         Exn{ failure = operation (\ () _ -> return x) }
+-- END:exceptDefault
 
 -- BEGIN:exnex
 safeDiv :: (Exn :? e) => Int -> Int -> Eff e Int
