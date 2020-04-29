@@ -78,14 +78,18 @@ sample3 = reader "" $
 -- introduce handlerRet
 
 -- BEGIN:state
-data State a e ans = State { get :: Op () a e ans, put :: Op a () e ans }
+data State a e ans = State { get :: Op () a e ans
+                           , put :: Op a () e ans }
+-- END:state
 
+-- BEGIN:statex
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handleLocal init $ \loc ->
-    State{ get = function (\() -> localGet loc init),
+    State{ -- TODO how to get rid of x in get
+           get = function (\x -> localGet loc x),
            put = function (\x -> localSet loc x)   }
--- END:state
+-- END:statex
 
 -- BEGIN:stateex
 add :: (State Int :? e) => Int -> Eff e Int
