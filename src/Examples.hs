@@ -31,6 +31,21 @@ sample1 = reader "world" $
              return ("hello " ++ s)
 -- END:readerex1
 
+-- BEGIN:readermult
+greet2 :: (Reader String :? e, Reader Bool :? e) => Eff e String
+greet2 = do s <- perform ask ()
+            isExit <- perform ask ()
+            if isExit then return ("goodbye " ++ s)
+            else return ("hello " ++ s)
+-- END:readermult
+
+-- BEGIN:readernoctx
+greet3 :: (Reader String :? e) => Eff e (Maybe String)
+greet3 = do s <- perform ask ()
+            if null isExit then return Nothing
+            else return Just ("hello " ++ s)
+-- END:readernoctx
+
 -- BEGIN:readergreet
 greet :: (Reader String :? e) => Eff e String
 greet = do s <- perform ask ()
