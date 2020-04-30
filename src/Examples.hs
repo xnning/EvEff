@@ -11,14 +11,14 @@ data Reader a e ans = Reader { ask :: Op () a e ans }
 -- END:reader
 
 -- BEGIN:readerhr
-hr :: a -> Reader a e ans 
+hr :: a -> Reader a e ans
 hr x = Reader{ ask = operation
                       (\ () resume -> resume x) }
 -- END:readerhr
 
 -- BEGIN:readerh
 reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
-reader x action 
+reader x action
   = handler (hr x) action
 -- END:readerh
 
@@ -134,15 +134,15 @@ collect = output $
 
 -- BEGIN:amb
 data Amb e ans
-     = Amb { choose :: forall b. Op (b, b) b e ans }
+     = Amb { choose :: forall b. Op () Bool e ans }
 -- END:amb
 
 -- BEGIN:allresults
 allResults :: Eff (Amb :* e) a -> Eff e [a]
 allResults = handlerRet (\x -> [x])
-   Amb{ choose = operation (\ (x, y) k ->
-                                do xs <- k x
-                                   ys <- k y
+   Amb{ choose = operation (\ () k ->
+                                do xs <- k True
+                                   ys <- k False
                                    return (xs ++ ys)
                               )}
 -- END:allresults
@@ -150,11 +150,11 @@ allResults = handlerRet (\x -> [x])
 -- BEGIN:backtrack
 backtrack :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
 backtrack = handler
-  Amb{ choose = operation (\ (x, y) k ->
-                             do xs <- k x
+  Amb{ choose = operation (\ () k ->
+                             do xs <- k True
                                 case xs of
                                   Just _  -> return xs
-                                  Nothing -> k y) }
+                                  Nothing -> k False) }
 -- END:backtrack
 
 
