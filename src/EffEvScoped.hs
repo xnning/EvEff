@@ -163,7 +163,7 @@ data Op a b e ans = Tail   !(Context e -> a -> Ctl b)                       -- t
 
 -- Given evidence and an operation selector, perform the operation
 -- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
-perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+perform :: h :? e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 {-# INLINE perform #-}
 perform selectOp x
   = withSubContext $ \(SubContext m h ctx) ->

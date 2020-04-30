@@ -86,7 +86,7 @@ data State a e ans = State { get :: Op () a e ans
 -- BEGIN:statex
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
-  = handleLocal init $ \loc ->
+  = handlerLocal init $ \loc ->
     State{ -- TODO how to get rid of x in get
            get = function (\x -> localGet loc x),
            put = function (\x -> localSet loc x)   }
@@ -123,7 +123,7 @@ data Output e ans = Output { out :: Op String () e ans }
 
 output :: Eff (Output :* e) ans -> Eff e (ans,String)
 output
-  = handleLocalRet [] (\x ss -> (x,concat ss)) $ \loc ->
+  = handlerLocalRet [] (\x ss -> (x,concat ss)) $ \loc ->
     Output { out = opTail (\x -> localUpdate loc (x:)) }
 
 collect = output $
@@ -170,12 +170,12 @@ localUpdate loc f
   = do x <- localGet loc ()
        localSet loc (f x)
 
-handleLocal :: a -> (Local a -> h e ans) -> Eff (h :* e) ans -> Eff e ans
-handleLocal init hcreate action
+handlerLocal :: a -> (Local a -> h e ans) -> Eff (h :* e) ans -> Eff e ans
+handlerLocal init hcreate action
     = local init (\loc -> handle (hcreate loc) action)
 
-handleLocalRet :: a -> (b -> a -> ans) -> (Local a -> h e ans) -> Eff (h :* e) b -> Eff e ans
-handleLocalRet init ret hcreate action
+handlerLocalRet :: a -> (b -> a -> ans) -> (Local a -> h e ans) -> Eff (h :* e) b -> Eff e ans
+handlerLocalRet init ret hcreate action
     = local init (\loc -> handle (hcreate loc) (do x <- action; l <- localGet loc init; return (ret x l)))
 -- END:util
 
