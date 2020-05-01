@@ -42,8 +42,8 @@ greet2 = do s <- perform ask ()
 -- BEGIN:readernoctx
 greet3 :: (Reader String :? e) => Eff e (Maybe String)
 greet3 = do s <- perform ask ()
-            if null isExit then return Nothing
-            else return Just ("hello " ++ s)
+            if null s then return Nothing
+            else return (Just ("hello " ++ s))
 -- END:readernoctx
 
 -- BEGIN:readergreet
