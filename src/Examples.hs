@@ -12,14 +12,12 @@ data Reader a e ans = Reader { ask :: Op () a e ans }
 
 -- BEGIN:readerhr
 hr :: a -> Reader a e ans
-hr x = Reader{ ask = operation
-                      (\ () resume -> resume x) }
+hr x = Reader{ ask = operation (\ () k -> k x) }
 -- END:readerhr
 
 -- BEGIN:readerh
 reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
-reader x action
-  = handler (hr x) action
+reader x action = handler (hr x) action
 -- END:readerh
 
 -- when to introduce function
@@ -54,8 +52,7 @@ greet = do s <- perform ask ()
 
 -- BEGIN:readerex
 helloWorld :: Eff e String
-helloWorld = reader "world" $
-             do greet
+helloWorld = reader "world" greet
 -- END:readerex
 
 -- BEGIN:exn
@@ -65,20 +62,24 @@ data Exn e ans
 
 -- BEGIN:exceptMaybe
 except :: Eff (Exn :* e) a -> Eff e (Maybe a)
-except = handlerRet Just $
-         Exn{ failure = operation (\ () _ -> return Nothing) }
+except
+  = handlerRet Just
+      Exn{ failure = operation
+                       (\ () _ -> return Nothing) }
 -- END:exceptMaybe
 
 -- BEGIN:exceptDefault
 exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a
-exceptDefault x = handler $
-         Exn{ failure = operation (\ () _ -> return x) }
+exceptDefault x
+  = handler Exn{ failure = operation
+                             (\ () _ -> return x) }
 -- END:exceptDefault
 
 -- BEGIN:exnex
 safeDiv :: (Exn :? e) => Int -> Int -> Eff e Int
 safeDiv x 0 = perform failure ()
 safeDiv x y = return (x `div` y)
+-- END:exnex
 
 safeHead :: (Exn :? e) => String -> Eff e Char
 safeHead []    = perform failure ()
@@ -89,7 +90,6 @@ sample3 = reader "" $
           do s <- perform ask ()
              c <- safeHead s
              return (Just c)
--- END:exnex
 
 -- introduce handlerRet
 
@@ -102,9 +102,9 @@ data State a e ans = State { get :: Op () a e ans
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handlerLocal init $ \loc ->
-    State{ -- TODO how to get rid of x in get
-           get = function (\x -> localGet loc x),
-           put = function (\x -> localSet loc x)   }
+      State{ -- TODO how to get rid of x in get
+             get = function (\x -> localGet loc x)
+           , put = function (\x -> localSet loc x) }
 -- END:statex
 
 -- BEGIN:stateex
