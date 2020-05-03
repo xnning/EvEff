@@ -30,18 +30,20 @@ sample1 = reader "world" $
 -- END:readerex1
 
 -- BEGIN:readermult
-greet2 :: (Reader String :? e, Reader Bool :? e) => Eff e String
-greet2 = do s <- perform ask ()
-            isExit <- perform ask ()
-            if isExit then return ("goodbye " ++ s)
-            else return ("hello " ++ s)
+greetOrExit :: (Reader String :? e, Reader Bool :? e)
+   => Eff e String
+greetOrExit
+  = do s <- perform ask ()
+       isExit <- perform ask ()
+       if isExit then return ("goodbye " ++ s)
+       else return ("hello " ++ s)
 -- END:readermult
 
 -- BEGIN:readernoctx
-greet3 :: (Reader String :? e) => Eff e (Maybe String)
-greet3 = do s <- perform ask ()
-            if null s then return Nothing
-            else return (Just ("hello " ++ s))
+greetMaybe :: Reader String :? e => Eff e (Maybe String)
+greetMaybe = do s <- perform ask ()
+                if null s then return Nothing
+                else return (Just ("hello " ++ s))
 -- END:readernoctx
 
 -- BEGIN:readergreet
@@ -108,16 +110,29 @@ state init
 -- END:statex
 
 -- BEGIN:stateex
-add :: (State Int :? e) => Int -> Eff e Int
+add :: (State Int :? e) => Int -> Eff e ()
 add i = do j <- perform get ()
            perform put (i + j)
-           return j
+-- END:stateex
+
+-- BEGIN:flip
+flip :: (State Bool :? e) => Eff e Bool
+flip = do b <- perform get ()
+          perform put (not b)
+          return (not b)
+-- END:flip
+
+-- BEGIN:double
+test :: Eff e Bool
+test = state True $ do Main.flip
+                       b <- perform get ()
+                       return b
+-- END:double
 
 adder = state (1::Int) $
         do add 41
            i <- perform get ()
            return ("the final state is: " ++ show (i::Int))
--- END:stateex
 
 
 -- BEGIN:pstate
@@ -152,24 +167,34 @@ data Amb e ans
      = Amb { choose :: forall b. Op () Bool e ans }
 -- END:amb
 
+-- BEGIN:xor
+xor :: Amb :? e => Eff e Bool
+xor = do x <- perform choose ()
+         y <- perform choose ()
+         return ((x && not y) || (not x && y))
+-- END:xor
+
 -- BEGIN:allresults
 allResults :: Eff (Amb :* e) a -> Eff e [a]
-allResults = handlerRet (\x -> [x])
-   Amb{ choose = operation (\ () k ->
-                                do xs <- k True
-                                   ys <- k False
-                                   return (xs ++ ys)
-                              )}
+allResults
+  = handlerRet (\x -> [x])
+      Amb{ choose = operation (\ () k ->
+                                  do xs <- k True
+                                     ys <- k False
+                                     return (xs ++ ys)
+                                )}
 -- END:allresults
 
 -- BEGIN:backtrack
 backtrack :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
-backtrack = handler
-  Amb{ choose = operation (\ () k ->
-                             do xs <- k True
-                                case xs of
-                                  Just _  -> return xs
-                                  Nothing -> k False) }
+backtrack
+  = handler
+      Amb{ choose = operation
+                      (\ () k ->
+                         do xs <- k True
+                            case xs of
+                              Just _  -> return xs
+                              Nothing -> k False) }
 -- END:backtrack
 
 
