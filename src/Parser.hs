@@ -21,15 +21,19 @@ handlerLocalRet :: a -> (b -> a -> ans) -> (Local a -> h e ans) -> Eff (h :* e) 
 handlerLocalRet init ret hcreate action
     = local init (\loc -> handle (hcreate loc) (do x <- action; l <- localGet loc init; return (ret x l)))
 
-data Many e ans = Many { flip :: Op () Bool e ans
-                       , fail :: forall a. Op () a e ans
-                       }
+-- BEGIN:many
+data Many e ans
+  = Many { flip :: Op () Bool e ans
+         , fail :: forall a. Op () a e ans }
+-- END:many
 
+-- BEGIN:choice
 choice :: Many :? e => Eff e a -> Eff e a -> Eff e a
 choice p1 p2 = do b <- perform flip ()
-                  if b then p1
-                  else p2
+                  if b then p1 else p2
+-- END:choice
 
+-- BEGIN:manyeg
 many :: Many :? e => (() -> Eff e a) -> Eff e [a]
 many p = choice (many1 p) (return [])
 
@@ -37,6 +41,7 @@ many1 :: Many :? e => (() -> Eff e a) -> Eff e [a]
 many1 p = do x <- p ()
              xs <- many p
              return (x:xs)
+-- END:manyeg
 
 solutions :: Eff (Many :* e) a -> Eff e [a]
 solutions
