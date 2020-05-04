@@ -78,8 +78,9 @@ instance Applicative (Eff e) where
   pure  = return
   (<*>) = ap
 instance Monad (Eff e) where
-  return x          = Eff (\ctx -> pure x)
-  (Eff eff) >>= f   = Eff (\ctx -> eff ctx >>= (\x -> under ctx (f x)))
+  return x      = Eff (\ctx -> pure x)
+  Eff eff >>= f = Eff (\ctx -> do ctl <- eff ctx
+                                  under ctx (f ctl))
 
 
 handle :: h e ans -> Eff (h :* e) ans -> Eff e ans

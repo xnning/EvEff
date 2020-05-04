@@ -1,6 +1,7 @@
 {-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  #-}
 -- Nice Examples for the paper
 import EffEvScopedOP
+import Prelude hiding (flip)
 
 operation op = opNormal op
 function f   = opTail f
@@ -115,16 +116,16 @@ add i = do j <- perform get ()
            perform put (i + j)
 -- END:stateex
 
--- BEGIN:flip
-flip :: (State Bool :? e) => Eff e Bool
-flip = do b <- perform get ()
-          perform put (not b)
-          return (not b)
--- END:flip
+-- BEGIN:invert
+invert :: (State Bool :? e) => Eff e Bool
+invert = do b <- perform get ()
+            perform put (not b)
+            perform get ()
+-- END:invert
 
 -- BEGIN:double
 test :: Eff e Bool
-test = state True $ do Main.flip
+test = state True $ do invert
                        b <- perform get ()
                        return b
 -- END:double
@@ -164,13 +165,13 @@ collect = output $
 
 -- BEGIN:amb
 data Amb e ans
-     = Amb { choose :: forall b. Op () Bool e ans }
+     = Amb { flip :: forall b. Op () Bool e ans }
 -- END:amb
 
 -- BEGIN:xor
 xor :: Amb :? e => Eff e Bool
-xor = do x <- perform choose ()
-         y <- perform choose ()
+xor = do x <- perform flip ()
+         y <- perform flip ()
          return ((x && not y) || (not x && y))
 -- END:xor
 
@@ -178,10 +179,10 @@ xor = do x <- perform choose ()
 allResults :: Eff (Amb :* e) a -> Eff e [a]
 allResults
   = handlerRet (\x -> [x])
-      Amb{ choose = operation (\ () k ->
-                                  do xs <- k True
-                                     ys <- k False
-                                     return (xs ++ ys)
+      Amb{ flip = operation (\ () k ->
+                                do xs <- k True
+                                   ys <- k False
+                                   return (xs ++ ys)
                                 )}
 -- END:allresults
 
@@ -189,12 +190,12 @@ allResults
 backtrack :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
 backtrack
   = handler
-      Amb{ choose = operation
-                      (\ () k ->
-                         do xs <- k True
-                            case xs of
-                              Just _  -> return xs
-                              Nothing -> k False) }
+      Amb{ flip = operation
+                    (\ () k ->
+                       do xs <- k True
+                          case xs of
+                            Just _  -> return xs
+                            Nothing -> k False) }
 -- END:backtrack
 
 
