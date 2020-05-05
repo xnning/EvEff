@@ -2,6 +2,8 @@
 -- Nice Examples for the paper
 import EffEvScopedOP
 import Prelude hiding (flip)
+import Data.Char
+import Data.Maybe
 
 operation op = opNormal op
 function f   = opTail f
@@ -63,13 +65,13 @@ data Exn e ans
      = Exn { failure :: forall a. Op () a e ans }
 -- END:exn
 
--- BEGIN:exceptMaybe
-except :: Eff (Exn :* e) a -> Eff e (Maybe a)
-except
+-- BEGIN:toMaybe
+toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)
+toMaybe
   = handlerRet Just
       Exn{ failure = operation
                        (\ () _ -> return Nothing) }
--- END:exceptMaybe
+-- END:toMaybe
 
 -- BEGIN:exceptDefault
 exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a
@@ -89,7 +91,7 @@ safeHead []    = perform failure ()
 safeHead (x:_) = return x
 
 sample3 = reader "" $
-          except $
+          toMaybe $
           do s <- perform ask ()
              c <- safeHead s
              return (Just c)
@@ -157,9 +159,6 @@ output
   = handlerLocalRet [] (\x ss -> (x,concat ss)) $ \loc ->
     Output { out = opTail (\x -> localUpdate loc (x:)) }
 
-collect = output $
-          do perform out "hi"
-             perform out "there"
 -- END:output
 
 
@@ -187,8 +186,8 @@ allResults
 -- END:allresults
 
 -- BEGIN:backtrack
-backtrack :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
-backtrack
+firstResult :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
+firstResult
   = handler
       Amb{ flip = operation
                     (\ () k ->
@@ -245,3 +244,81 @@ handleParam init hcreate action
     in handle (hcreate (pTail p) (pNormal p)) action
 
 -- END:handleParam
+
+solutions :: Eff (Exn :* Amb :* e) a -> Eff e [a]
+solutions action
+  = fmap catMaybes $ allResults $ toMaybe $ action
+
+eager :: Eff (Exn :* Amb :* e) a -> Eff e (Maybe a)
+eager action
+    = firstResult $ toMaybe $ action
+
+choice :: Amb :? e => Eff e a -> Eff e a -> Eff e a
+choice p1 p2 = do b <- perform flip ()
+                  if b then p1 else p2
+
+-- BEGIN:manyeg
+many :: Amb :? e => (() -> Eff e a) -> Eff e [a]
+many p = choice (many1 p) (return [])
+
+many1 :: Amb :? e => (() -> Eff e a) -> Eff e [a]
+many1 p = do x <- p ()
+             xs <- many p
+             return (x:xs)
+-- END:manyeg
+
+data Parse e ans = Parse { satisfy :: forall a. Op (String -> (Maybe (a, String))) a e ans}
+
+parse :: Exn :? e => String -> Eff (Parse :* e) b -> Eff e (b, String)
+parse init = handlerLocalRet init
+                 (\x y -> (x, y))
+                 (\loc -> Parse { satisfy = operation $
+                                             \p k -> do input <- localGet loc p
+                                                        case (p input) of
+                                                           Nothing -> perform failure ()
+                                                           Just (x, rest) -> do localSet loc rest
+                                                                                k x
+                                })
+
+symbol :: Parse :? e => Char -> Eff e Char
+symbol c = perform satisfy (\input ->
+                              case input of
+                                (d:rest) | d == c -> Just (c, rest)
+                                _ -> Nothing
+                                )
+
+digit :: Parse :? e => () -> Eff e Int
+digit c = perform satisfy (\input ->
+                              case input of
+                                (d:rest) | isDigit d -> Just (digitToInt d, rest)
+                                _ -> Nothing
+                                )
+
+number :: (Parse :? e, Amb :? e) => Eff e Int
+number = do xs <- many1 digit
+            return $ foldl (\n d -> 10 * n + d) 0 xs
+
+expr :: (Parse :? e, Amb :? e) => Eff e Int
+expr = choice (do i <- term
+                  symbol '+'
+                  j <- term
+                  return (i + j))
+              term
+
+term :: (Parse :? e, Amb :? e) => Eff e Int
+term = choice (do i <- factor
+                  symbol '*'
+                  j <- factor
+                  return (i * j))
+              factor
+
+factor :: (Parse :? e, Amb :? e) => Eff e Int
+factor = choice number
+                (do symbol '('
+                    i <- expr
+                    symbol ')'
+                    return i)
+
+test1 = erun $ solutions $ parse "1+2*3" expr
+
+test2 = erun $ eager $ parse "1+2*3" expr
