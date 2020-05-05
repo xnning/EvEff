@@ -108,8 +108,8 @@ state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handlerLocal init $ \loc ->
       State{ -- TODO how to get rid of x in get
-             get = function (\x -> localGet loc x)
-           , put = function (\x -> localSet loc x) }
+             get = function (localGet loc)
+           , put = function (localSet loc) }
 -- END:statex
 
 -- BEGIN:stateex
@@ -176,25 +176,21 @@ xor = do x <- perform flip ()
 
 -- BEGIN:allresults
 allResults :: Eff (Amb :* e) a -> Eff e [a]
-allResults
-  = handlerRet (\x -> [x])
-      Amb{ flip = operation (\ () k ->
-                                do xs <- k True
-                                   ys <- k False
-                                   return (xs ++ ys)
-                                )}
+allResults = handlerRet (\x -> [x]) Amb{
+  flip = operation (\ () k ->
+            do xs <- k True
+               ys <- k False
+               return (xs ++ ys)) }
 -- END:allresults
 
 -- BEGIN:backtrack
 firstResult :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
-firstResult
-  = handler
-      Amb{ flip = operation
-                    (\ () k ->
-                       do xs <- k True
-                          case xs of
-                            Just _  -> return xs
-                            Nothing -> k False) }
+firstResult = handler Amb{
+  flip = operation (\ () k ->
+           do xs <- k True
+              case xs of
+                Just _  -> return xs
+                Nothing -> k False) }
 -- END:backtrack
 
 
@@ -245,80 +241,88 @@ handleParam init hcreate action
 
 -- END:handleParam
 
+-- BEGIN:solutions
 solutions :: Eff (Exn :* Amb :* e) a -> Eff e [a]
 solutions action
-  = fmap catMaybes $ allResults $ toMaybe $ action
+  = fmap catMaybes (allResults (toMaybe (action)))
+-- END:solutions
 
+-- BEGIN:eager
 eager :: Eff (Exn :* Amb :* e) a -> Eff e (Maybe a)
-eager action
-    = firstResult $ toMaybe $ action
+eager action = firstResult (toMaybe (action))
+-- END:eager
 
+-- BEGIN:choice
 choice :: Amb :? e => Eff e a -> Eff e a -> Eff e a
 choice p1 p2 = do b <- perform flip ()
                   if b then p1 else p2
+-- END:choice
 
 -- BEGIN:manyeg
 many :: Amb :? e => (() -> Eff e a) -> Eff e [a]
 many p = choice (many1 p) (return [])
 
 many1 :: Amb :? e => (() -> Eff e a) -> Eff e [a]
-many1 p = do x <- p ()
-             xs <- many p
-             return (x:xs)
+many1 p = do x <- p (); xs <- many p ; return (x:xs)
 -- END:manyeg
 
-data Parse e ans = Parse { satisfy :: forall a. Op (String -> (Maybe (a, String))) a e ans}
+-- BEGIN:parse
+data Parse e ans = Parse {
+  satisfy :: forall a.
+        Op (String -> (Maybe (a, String))) a e ans }
+-- END:parse
 
-parse :: Exn :? e => String -> Eff (Parse :* e) b -> Eff e (b, String)
-parse init = handlerLocalRet init
-                 (\x y -> (x, y))
-                 (\loc -> Parse { satisfy = operation $
-                                             \p k -> do input <- localGet loc p
-                                                        case (p input) of
-                                                           Nothing -> perform failure ()
-                                                           Just (x, rest) -> do localSet loc rest
-                                                                                k x
-                                })
+-- BEGIN:parsefun
+parse :: Exn :? e =>
+  String -> Eff (Parse :* e) b -> Eff e (b, String)
+parse input
+  = handlerLocalRet input
+      (\x y -> (x, y))
+      (\loc -> Parse { satisfy = operation $ \p k ->
+          do input <- localGet loc p
+             case (p input) of
+                Nothing -> perform failure ()
+                Just (x, rest) -> do localSet loc rest
+                                     k x
+             })
+-- END:parsefun
 
+-- BEGIN:symbol
 symbol :: Parse :? e => Char -> Eff e Char
-symbol c = perform satisfy (\input ->
-                              case input of
-                                (d:rest) | d == c -> Just (c, rest)
-                                _ -> Nothing
-                                )
+symbol c = perform satisfy (\input -> case input of
+    (d:rest) | d == c -> Just (c, rest)
+    _ -> Nothing)
 
 digit :: Parse :? e => () -> Eff e Int
-digit c = perform satisfy (\input ->
-                              case input of
-                                (d:rest) | isDigit d -> Just (digitToInt d, rest)
-                                _ -> Nothing
-                                )
+digit c = perform satisfy (\input -> case input of
+    (d:rest) | isDigit d -> Just (digitToInt d, rest)
+    _ -> Nothing)
+-- END:symbol
 
-number :: (Parse :? e, Amb :? e) => Eff e Int
-number = do xs <- many1 digit
-            return $ foldl (\n d -> 10 * n + d) 0 xs
-
+-- BEGIN:expr
 expr :: (Parse :? e, Amb :? e) => Eff e Int
-expr = choice (do i <- term
-                  symbol '+'
-                  j <- term
+expr = choice (do i <- term; symbol '+'; j <- term
                   return (i + j))
               term
 
 term :: (Parse :? e, Amb :? e) => Eff e Int
-term = choice (do i <- factor
-                  symbol '*'
-                  j <- factor
+term = choice (do i <- factor; symbol '*'; j <- factor
                   return (i * j))
               factor
 
 factor :: (Parse :? e, Amb :? e) => Eff e Int
 factor = choice number
-                (do symbol '('
-                    i <- expr
-                    symbol ')'
+                (do symbol '('; i <- expr; symbol ')'
                     return i)
 
-test1 = erun $ solutions $ parse "1+2*3" expr
+number :: (Parse :? e, Amb :? e) => Eff e Int
+number = do xs <- many1 digit
+            return $ foldl (\n d -> 10 * n + d) 0 xs
 
-test2 = erun $ eager $ parse "1+2*3" expr
+-- END:expr
+
+test1 = erun (solutions (parse "1+2*3" expr))
+-- [(7,""),(3,"*3"),(1,"+2*3")]
+
+test2 = erun (eager (parse "1+2*3" expr))
+-- Just (7,"")

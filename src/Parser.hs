@@ -1,5 +1,8 @@
 {-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  #-}
 -- Nice Examples for the paper
+
+module Parser where
+
 import EffEvScopedOP
 import Prelude hiding (flip, fail)
 import Data.Char
