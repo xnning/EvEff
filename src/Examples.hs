@@ -67,17 +67,14 @@ data Exn e ans
 
 -- BEGIN:toMaybe
 toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)
-toMaybe
-  = handlerRet Just
-      Exn{ failure = operation
-                       (\ () _ -> return Nothing) }
+toMaybe = handlerRet Just Exn{
+  failure = operation (\ () _ -> return Nothing) }
 -- END:toMaybe
 
 -- BEGIN:exceptDefault
 exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a
-exceptDefault x
-  = handler Exn{ failure = operation
-                             (\ () _ -> return x) }
+exceptDefault x = handler Exn{
+  failure = operation (\ () _ -> return x) }
 -- END:exceptDefault
 
 -- BEGIN:exnex
@@ -105,10 +102,8 @@ data State a e ans = State { get :: Op () a e ans
 
 -- BEGIN:statex
 state :: a -> Eff (State a :* e) ans -> Eff e ans
-state init
-  = handlerLocal init $ \loc ->
-      State{ -- TODO how to get rid of x in get
-             get = function (localGet loc)
+state init = handlerLocal init $ \loc ->
+      State{ get = function (localGet loc)
            , put = function (localSet loc) }
 -- END:statex
 
@@ -184,7 +179,8 @@ allResults = handlerRet (\x -> [x]) Amb{
 -- END:allresults
 
 -- BEGIN:backtrack
-firstResult :: Eff (Amb :* e) (Maybe a) -> Eff e (Maybe a)
+firstResult :: Eff (Amb :* e) (Maybe a)
+  -> Eff e (Maybe a)
 firstResult = handler Amb{
   flip = operation (\ () k ->
            do xs <- k True
@@ -276,15 +272,13 @@ data Parse e ans = Parse {
 parse :: Exn :? e =>
   String -> Eff (Parse :* e) b -> Eff e (b, String)
 parse input
-  = handlerLocalRet input
-      (\x y -> (x, y))
-      (\loc -> Parse { satisfy = operation $ \p k ->
-          do input <- localGet loc p
-             case (p input) of
-                Nothing -> perform failure ()
-                Just (x, rest) -> do localSet loc rest
-                                     k x
-             })
+  = handlerLocalRet input (\x y -> (x, y)) (\loc ->
+      Parse { satisfy = operation $ \p k ->
+        do input <- localGet loc p
+           case (p input) of
+              Nothing -> perform failure ()
+              Just (x, rest) -> do localSet loc rest
+                                   k x })
 -- END:parsefun
 
 -- BEGIN:symbol
@@ -311,9 +305,9 @@ term = choice (do i <- factor; symbol '*'; j <- factor
               factor
 
 factor :: (Parse :? e, Amb :? e) => Eff e Int
-factor = choice number
-                (do symbol '('; i <- expr; symbol ')'
+factor = choice (do symbol '('; i <- expr; symbol ')'
                     return i)
+                number
 
 number :: (Parse :? e, Amb :? e) => Eff e Int
 number = do xs <- many1 digit
