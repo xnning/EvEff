@@ -27,6 +27,7 @@ dependencies:
 - random
 - containers
 - mtl
+- extensible-effects
 
 library:
   source-dirs: src
