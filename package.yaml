@@ -58,10 +58,3 @@ executables:
     - -O3
     dependencies:
     - effev
-
-tests:
-  effev-test:
-    main:                Spec.hs
-    source-dirs:         test
-    dependencies:
-    - effev
