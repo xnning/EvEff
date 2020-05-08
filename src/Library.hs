@@ -29,13 +29,21 @@ mstate = State { get_ = Normal (\() k -> return $ \s -> (k s  >>= \r -> r s ))
                , put_ = Normal (\s  k -> return $ \_ -> (k () >>= \r -> r s))
                }
 
-runNext :: (State Int :? e) => Int -> Eff e Int
-runNext i = if (i == 0) then return i
-             else put (i-1) >>= runCount
+-- NINGNING: this version seems faster for eff local.
+--           But it's not a fair comparison.
+-- runNext :: (State Int :? e) => Int -> Eff e Int
+-- runNext i = if (i == 0) then return i
+--              else put (i-1) >>= runCount
 
-{-# NOINLINE runCount #-}
+-- {-# NOINLINE runCount #-}
+-- runCount :: (State Int :? e) => () -> Eff e Int
+-- runCount () = get >>= runNext
+
+
 runCount :: (State Int :? e) => () -> Eff e Int
-runCount () = get >>= runNext
+runCount () = do i <- get
+                 if (i == 0) then return i
+                   else put (i-1) >>= runCount
 
 
 count :: Int -> (Int, Int)

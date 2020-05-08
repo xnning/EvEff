@@ -16,8 +16,8 @@ import System.IO.Unsafe ( unsafePerformIO )
 import qualified Control.Monad.State as M
 
 -- "extensible effects"
-import qualified Control.Eff as F
-import qualified Control.Eff.State.Lazy as FS
+import qualified Control.Eff as EE
+import qualified Control.Eff.State.Lazy as EES
 
 import EffEvScopedLocalHide
 
@@ -46,13 +46,13 @@ runMonadic = M.runState countMonadic
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
 
-countExtEff :: (F.Member (FS.State Int) r) => () -> F.Eff r Int
-countExtEff () = do n <- FS.get
-                    if n == 0 then return n
-                    else do FS.put (n - 1);
-                            countExtEff ()
+countEE :: (EE.Member (EES.State Int) r) => EE.Eff r Int
+countEE = do n <- EES.get
+             if n == 0 then return n
+             else do EES.put (n - 1)
+                     countEE
 
-runExtEff n = FS.runState n (countExtEff ())
+runEE n = EES.runState n countEE
 
 -------------------------------------------------------
 -- EFF LCOAL NON TAIL
@@ -94,8 +94,9 @@ effPlain n = bench "eff plain state"    $ whnf count n
 effPar   n = bench "eff parameterized"  $ whnf pCount n
 effLo    n = bench "eff local"          $ whnf lCount n
 effLoNt  n = bench "eff local non tail" $ whnf lCountNonTail n
-ext      n = bench "extensible effects "     $ whnf runExtEff n
 effLoc   n = bench "eff safe local "     $ whnf runCountl n
+
+ee       n = bench "extensible effects "     $ whnf runEE n
 
 
 comp n  = [ ppure n
@@ -106,7 +107,7 @@ comp n  = [ ppure n
           , effPar n
           , effLo n
           , effLoNt n
-          ]
+          , ee n ]
 iterExp = 6
 
 

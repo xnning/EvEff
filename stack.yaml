@@ -1,7 +1,9 @@
 resolver: lts-14.2
 
 packages: ['.']
-extra-deps: ['extensible-effects-5.0.0.1']
+extra-deps: [
+  extensible-effects-5.0.0.1
+]
 
 flags: {}
 
