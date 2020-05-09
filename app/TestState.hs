@@ -98,7 +98,6 @@ ee       n = bench "extensible effects "     $ whnf runEE n
 
 comp n  = [ ppure n
           , monadic n
-          , ext n
           , effLoc n
           , effPlain n
           , effPar n
