@@ -12,40 +12,38 @@
               Rank2Types
 #-}
 
-module EffEvScopedLocalHide(
-              -- Eff,
-              (:*)
+module Control.Ev.Eff(
+              Eff
+            , runEff          -- :: Eff () a -> a
+            , (:*)
             , In, (:?)
 
+            -- operations
             , Op
+            , value
             , function
             , operation
-            , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
-
             , perform         -- :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
-            , erun            -- :: Eff () a -> a
+            , mask
 
-            , Sub, SubH(..)
-            , open            -- :: Sub e1 e2 => Eff e1 a -> Eff e2 a
-            -- , openOp
+            -- handling
+            , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
+            , handlerRet
+            , handlerHide
 
+            -- local variables
             , Local
             , localGet
             , localSet
+            , localUpdate
             , handlerLocal
             , handlerLocalRet
-
-            -- just for EffEvScopedOP
-            , Context(..)
-            , SubContext(..), withSubContext
-            , under, guard
-            , Eff(..)
             ) where
 
 import Prelude hiding (read,flip)
 import Control.Monad( ap, liftM )
 import Data.Type.Equality( (:~:)( Refl ) )
-import Ctl hiding (Local)
+import Control.Ev.Ctl hiding (Local)
 import Data.IORef
 
 -- import Unsafe.Coerce     (unsafeCoerce)
@@ -64,6 +62,11 @@ data Context e where
   HCons :: !(Marker ans) -> !(Hide h' e) -> !(h (h' :* e) ans) -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
 
+ctail :: Context (h :* e) -> Context e
+ctail ctx
+  = case ctx of
+      CCons _ _ ctx'   -> ctx'
+      HCons _ _ _ ctx' -> ctx'
 
 
 -------------------------------------------------------
@@ -96,17 +99,22 @@ handler h action
   = Eff (\ctx -> mprompt $ \m ->                  -- set a fresh prompt with marker `m`
                  do under (CCons m h ctx) action) -- and call action with the extra evidence
 
-erun :: Eff () a -> a
-erun (Eff eff)  = mrun (eff CNil)
+runEff :: Eff () a -> a
+runEff (Eff eff)  = runCtl (eff CNil)
 
+handlerRet :: (ans -> a) -> h e a -> Eff (h :* e) ans -> Eff e a
 handlerRet f h action
   = handler h (do x <- action; return (f x))
+
+
 
 
 -- A handler that hides one handler h' that it runs under itself
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
-  = Eff (\(CCons m' h' ctx) -> mprompt $ \m -> under (HCons m (Hide m' h') h ctx) action)
+  = Eff (\ctx -> case ctx of
+                   CCons m' h' ctx' -> mprompt $ \m -> under (HCons m (Hide m' h') h ctx') action
+                   _ -> error "Control.Ev.Eff.handlerHide: cannot hide already hidden handlers")
 
 
 -- Efficient (and safe) Local state handler
@@ -114,44 +122,49 @@ data Local a e ans = Local (IORef a)
 
 {-# INLINE localGet #-}
 localGet :: Eff (Local a :* e) a
-localGet = Eff (\(CCons _ (Local r) _) -> ctlIO (readIORef r))
+localGet = Eff (\(CCons _ (Local r) _) -> unsafeIO (readIORef r))
 
 {-# INLINE localSet #-}
 localSet :: a -> Eff (Local a :* e) ()
-localSet x = Eff (\(CCons _ (Local r) _) -> ctlIO (writeIORef r x))
+localSet x = Eff (\(CCons _ (Local r) _) -> unsafeIO (writeIORef r x))
 
-localRet :: a -> (ans -> a -> b) -> Eff (Local a :* e) ans -> Eff e b
-localRet init ret action
-  = do r <- effIO $ newIORef init
-       x <- handler (Local r) action
-       y <- effIO $ readIORef r
-       return (ret x y)
-  where
-    effIO io = Eff (\ctx -> ctlIO io)
+{-# INLINE localUpdate #-}
+localUpdate :: (a -> a) -> Eff (Local a :* e) a
+localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x); return x }))
 
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
-  = localRet init const action
+  = do r <- lift $ unsafeIO (newIORef init)
+       handler (Local r) action
 
 
 -- Expose a local state handler to just one handler's operations
 handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
-  = localRet init ret $ handlerHide h action
+  = local init $ do x <- handlerHide h action
+                    y <- localGet
+                    return (ret x y)
 
+handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
 handlerLocal init h action
-  = handlerLocalRet init const h action
+  = local init (handlerHide h action)
+
+
+
+mask :: Eff e ans -> Eff (h :* e) ans
+mask (Eff f) = Eff (\ctx -> f (ctail ctx))
+
 
 ---------------------------------------------------------
 -- In, Context
 ---------------------------------------------------------
-data SubContext h   = forall e ans. SubContext !(Marker ans) !(h e ans) !(Context e)
-                    | forall h' e ans. SubContextHide !(Marker ans) !(Hide h' e) !(h (h' :* e) ans) !(Context e)
-
 type h :? e = In h e
 
 class In h e where
   subContext :: Context e -> SubContext h
+
+data SubContext h  = forall e. SubContext !(Context (h :* e))
+
 
 instance (InEq (HEqual h h') h h' w) => In h (h' :* w)  where
   subContext = subContextEq
@@ -165,12 +178,10 @@ class (iseq ~ HEqual h h') => InEq iseq h h' e  where
   subContextEq :: Context (h' :* e) -> SubContext h
 
 instance (h ~ h') => InEq 'True h h' e where
-  subContextEq (CCons m h ctx) = SubContext m h ctx
-  subContextEq (HCons m hide h ctx) = SubContextHide m hide h ctx
+  subContextEq ctx = SubContext ctx
 
 instance ('False ~ HEqual h h', In h e) => InEq 'False h h' e where
-  subContextEq (CCons m h ctx)   = subContext ctx
-  subContextEq (HCons m _ h ctx) = subContext ctx
+  subContextEq ctx = subContext (ctail ctx)
 
 withSubContext :: (In h e) => (SubContext h -> Ctl a) -> Eff e a
 {-# INLINE withSubContext #-}
@@ -182,7 +193,7 @@ withSubContext f
 -- Allow giving closed type signature (like `State Int :* Amb :* ()`)
 -- and later open it up in another context
 ------------------------------------------------------------------------
-
+{-
 class Sub e1 e2 where
   open :: Eff e1 a -> Eff e2 a
 
@@ -203,7 +214,7 @@ openOp w (Op f) = Op $ \a g ->
 
 class SubH h where
   subH :: Sub e1 e2  => Context e2 -> h e2 a -> h e1 a
-
+-}
 
 
 ------------------------------------
@@ -217,10 +228,15 @@ newtype Op a b e ans = Op { useOp :: Marker ans -> Context e -> a -> Ctl b}
 perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 {-# INLINE perform #-}
 perform selectOp x
-  = withSubContext $ \ctx ->
-    case ctx of
-      SubContext m h ctx                  -> useOp (selectOp h) m ctx x
-      SubContextHide m (Hide m' h') h ctx -> useOp (selectOp h) m (CCons m' h' ctx) x
+  = withSubContext $ \(SubContext sctx) ->
+    case sctx of
+      CCons m h ctx              -> useOp (selectOp h) m ctx x
+      HCons m (Hide m' h') h ctx -> useOp (selectOp h) m (CCons m' h' ctx) x
+
+
+-- tail-resumptive value operation (reader)
+value :: a -> Op () a e ans
+value x = function (\() -> return x)
 
 -- tail-resumptive operation (almost all operations)
 function :: (a -> Eff e b) -> Op a b e ans
@@ -229,12 +245,12 @@ function f = Op (\_ ctx x -> under ctx (f x))
 -- general operation with a resumption (exceptions, async/await, etc)
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
 operation f = Op (\m ctx x -> mcontrol m $ \ctlk ->
-                       let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
-                       in under ctx (f x k))
+                              let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
+                              in under ctx (f x k))
 
 
 guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a
-guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "unscoped resumption"
+guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "Control.Ev.Eff.guard: unscoped resumption under a different handler context"
 
 instance Eq (Context e) where
   CNil               == CNil                = True

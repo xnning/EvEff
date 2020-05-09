@@ -80,6 +80,17 @@ countl ()
 runCountl :: Int -> Int
 runCountl n = erun $ statel n $ countl ()
 
+
+countl2 :: (StateL Int :? e) => Eff e Int
+countl2
+  = do i <- perform getl ()
+       if (i==0) then return i
+        else do perform setl (i - 1)
+                countl2
+
+runCountl2 :: Int -> Int
+runCountl2 n = erun $ statel n $ countl2
+
 -------------------------------------------------------
 -- TESTS
 -------------------------------------------------------
@@ -92,6 +103,7 @@ effPar   n = bench "eff parameterized"  $ whnf pCount n
 effLo    n = bench "eff local"          $ whnf lCount n
 effLoNt  n = bench "eff local non tail" $ whnf lCountNonTail n
 effLoc   n = bench "eff safe local "     $ whnf runCountl n
+effLoc2  n = bench "eff safe local; no unit "     $ whnf runCountl2 n
 
 ee       n = bench "extensible effects "     $ whnf runEE n
 
@@ -99,6 +111,7 @@ ee       n = bench "extensible effects "     $ whnf runEE n
 comp n  = [ ppure n
           , monadic n
           , effLoc n
+          , effLoc2 n
           , effPlain n
           , effPar n
           , effLo n
