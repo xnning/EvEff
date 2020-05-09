@@ -51,7 +51,7 @@ queensComp n = foldM f [] [1..n] where
 ------------------------
 
 maybeResult :: Choose e (Maybe ans)
-maybeResult = Choose{ choose_ = Normal  (\xs k ->
+maybeResult = Choose{ choose_ = operation  (\xs k ->
                                  let fun ys = case ys of
                                       []      -> return Nothing
                                       (y:ys') -> do res <- k y
@@ -74,7 +74,7 @@ newtype Stack e a = Stack ([Eff (State (Stack e a) :* e) a])
 
 
 firstResult :: Choose (State (Stack e ans) :* e) ans
-firstResult = Choose { choose_ = Normal (\xs k ->
+firstResult = Choose { choose_ = operation (\xs k ->
                                  case xs of
                                       []     -> do Stack stack <- get
                                                    case stack of

@@ -2,7 +2,6 @@
 module Library where
 
 import Prelude
-import Ctl
 import EffEvScoped
 import GHC.Prim
 import GHC.Exts
@@ -16,7 +15,7 @@ data Reader a e ans = Reader { ask :: Op () a e ans }
 {-# INLINE reader #-}
 reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
 reader x action = handle
-  Reader{ ask = opTail (\() -> return x) }
+  Reader{ ask = function (\() -> return x) }
   action
 
 ------------
@@ -37,8 +36,8 @@ put i = (perform put_ i)
 -- A monadic state handler
 -- Note: can be done more efficient with parameterized control
 mstate :: State a e (a -> Eff e ans)
-mstate = State { get_ = Normal (\() k -> return $ \s -> (k s  >>= \r -> r s ))
-               , put_ = Normal (\s  k -> return $ \_ -> (k () >>= \r -> r s))
+mstate = State { get_ = operation (\() k -> return $ \s -> (k s  >>= \r -> r s ))
+               , put_ = operation (\s  k -> return $ \_ -> (k () >>= \r -> r s))
                }
 
 -- NINGNING: this version seems faster for eff local.
@@ -72,19 +71,9 @@ count n = erun $
 lstate :: a -> Eff (State a :* e) ans -> Eff e ans
 lstate init action
   = local init $ \l ->
-    let h = State { get_ = opTail (\x -> localGet l x),
-                    put_ = opTail (\x -> localSet l x) }
+    let h = State { get_ = function (\x -> localGet l x),
+                    put_ = function (\x -> localSet l x) }
     in handle h action
-
-hlocal :: p -> (Local p -> h e ans) -> Eff (h :* e) ans -> Eff e ans
-hlocal init hcreate action
-  = local init $ \l -> handle (hcreate l) action
-
-
-lstate' init
-  = hlocal init $ \l ->
-    State { get_ = opTail (\x -> localGet l x),
-            put_ = opTail (\x -> localSet l x) }
 
 {-
 safeLocalGet :: Local s a -> Eff e a
@@ -128,7 +117,7 @@ weird n = erun $
 
 -}
 lCount :: Int -> Int
-lCount n = erun $ lstate' n $
+lCount n = erun $ lstate n $
            do x <- runCount ()
               return x
 
@@ -140,32 +129,30 @@ main = do let x = lCount (10^6)
 ------------------------------------
 -- Parameterized handler
 -------------------------------------
-newtype Parameter s a = Parameter (Local a)
+newtype Parameter a = Parameter (Local a)
 
-pNormal :: Parameter s p -> (a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans
+pNormal :: Parameter p -> (a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans
 pNormal (Parameter p) op
-  = Normal (\x k -> do vx <- localGet p x
-                       let kp (y,vy) = do{ localSet p vy; k y }
-                       op x vx kp)
+  = operation (\x k -> do vx <- localGet p x
+                          let kp (y,vy) = do{ localSet p vy; k y }
+                          op x vx kp)
 
-pTail :: Parameter s p -> (a -> p -> Eff e (b,p)) -> Op a b e ans
+pTail :: Parameter p -> (a -> p -> Eff e (b,p)) -> Op a b e ans
 pTail (Parameter p) op
- = opTail (\x -> do vx <- localGet p x
-                    (y,vy) <- op x vx
-                    localSet p vy
-                    return y)
+ = function (\x -> do vx <- localGet p x
+                      (y,vy) <- op x vx
+                      localSet p vy
+                      return y)
 
-phandle :: (forall s. Parameter s p -> h e ans) -> p -> Eff (h :* e) ans -> Eff e ans
+phandle :: (Parameter p -> h e ans) -> p -> Eff (h :* e) ans -> Eff e ans
 phandle hcreate init action
   = local init $ \local ->
     let p = Parameter local
     in handle (hcreate p) action
 
-------
-pstate :: Parameter s a -> State a e ans
+pstate :: Parameter a -> State a e ans
 pstate p = State { get_ = pTail p (\() v -> return (v,v)),
                    put_ = pTail p (\x v  -> return ((),x)) }
-
 
 pCount :: Int -> Int
 pCount n = erun $
@@ -187,15 +174,11 @@ writer :: (Monoid a) => a -> Eff (Writer a :* e) ans -> Eff e (a, ans)
 {-# INLINE writer #-}
 writer init action
   = local init $ \l ->
-      let h = Writer { tell_ = opTail (\x -> do y <- localGet l x
-                                                localSet l (mappend y x)) }
+      let h = Writer { tell_ = function (\x -> do y <- localGet l x
+                                                  localSet l (mappend y x)) }
       in do y <- handle h action
             x <- localGet l init
             return (x, y)
-
-------------
--- Exn
-------------
 
 data Exn e ans = Exn { throwError_ :: forall a. Op String a e ans }
 
@@ -203,7 +186,8 @@ throwError :: In Exn e  => String -> Eff e a
 throwError = perform throwError_
 
 exn :: Exn e (Either String a)
-exn = Exn (Normal (\msg resume -> return $ Left msg))
+exn = Exn (operation (\msg resume -> return $ Left msg))
+
 
 
 ---------------------------------------
@@ -213,17 +197,17 @@ exn = Exn (Normal (\msg resume -> return $ Left msg))
 lstateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
 lstateNonTail init action
   = local init $ \l ->
-    let h = State { get_ = Normal (\x k -> do y <- localGet l x; k y),
-                    put_ = Normal (\x k -> do localSet l x; k ()) }
+    let h = State { get_ = operation (\x k -> do y <- localGet l x; k y),
+                    put_ = operation (\x k -> do localSet l x; k ()) }
     in handle h action
 
 writerNonTail :: (Monoid a) => a -> Eff (Writer a :* e) ans -> Eff e (a, ans)
 {-# INLINE writerNonTail #-}
 writerNonTail init action
   = local init $ \l ->
-      let h = Writer { tell_ = Normal (\x k -> do y <- localGet l x
-                                                  localSet l (mappend y x)
-                                                  k ()) }
+      let h = Writer { tell_ = operation (\x k -> do y <- localGet l x
+                                                     localSet l (mappend y x)
+                                                     k ()) }
       in do y <- handle h action
             x <- localGet l init
             return (x, y)

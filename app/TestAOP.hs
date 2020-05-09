@@ -21,9 +21,6 @@ import Criterion.Types
 import EffEvScoped
 import qualified Library as E
 
--- with a differernt OP implementation
-import qualified LibraryOP as P
-
 data Expr
   = Lit Int
   | Var String
@@ -172,58 +169,6 @@ handleEffNonTail e = E.writerNonTail "" $
 testEvalEffNonTail e = fst (erun (handleEffNonTail e))
 
 ---------------------------------------------------------
--- ALGEBRAIC OP
----------------------------------------------------------
-
-evalEffOP ::  (P.Writer String :? e, P.State Env :? e) => Expr -> Eff e Int
-evalEffOP exp =
-  do (s::Env) <- P.get
-     P.tell (show s ++ "\n")
-     P.tell ("Entering eval with " ++ show exp ++ "\n")
-     result <-
-       case exp of
-         Lit x             -> return x
-         Var s             -> do  e <- P.get
-                                  case lookup s e of
-                                    Just x  -> return x
-                                    _       -> error "Variable not found!"
-         Plus l r          -> do  x <- evalEffOP l
-                                  y <- evalEffOP r
-                                  return (x+y)
-         Assign x r        -> do  y <- evalEffOP r
-                                  e <- P.get
-                                  P.put ((x,y):e)
-                                  return y
-         Sequence []       -> return 0
-         Sequence [x]      -> evalEffOP x
-         Sequence (x:xs)   -> evalEffOP x >> evalEffOP (Sequence xs)
-         While c b         -> do  x <- evalEffOP c
-                                  if (x == 0) then return 0
-                                    else (evalEffOP b >> evalEffOP exp)
-     P.tell ("Exiting eval with " ++ show result ++ "\n")
-     return result
-
-handleEffOP ::  Expr -> Eff e (String, Int)
-handleEffOP e = P.writer "" $
-              P.lstate ([]::Env) $
-              do x <- evalEffOP e
-                 return $ x
-
-testEvalEffOP e = fst (erun (handleEffOP e))
-
----------------------------------------------------------
--- ALGEBRAIC OP NON TAIL
----------------------------------------------------------
-
-handleEffOPNonTail ::  Expr -> Eff e (String, Int)
-handleEffOPNonTail e = P.writerNonTail "" $
-                     P.lstateNonTail ([]::Env) $
-                     do x <- evalEffOP e
-                        return $ x
-
-testEvalEffOPNonTail e = fst (erun (handleEffOPNonTail e))
-
----------------------------------------------------------
 -- TEST
 ---------------------------------------------------------
 
@@ -249,8 +194,6 @@ makeGroup n =
                                  , bench "mixin"     $ whnf last (testEvalMixin e)
                                  , bench "algebraic" $ whnf last (testEvalEff e)
                                  , bench "algebraic non tail" $ whnf last (testEvalEffNonTail e)
-                                 , bench "algebraic OP" $ whnf last (testEvalEffOP e)
-                                 , bench "algebraic OP non tail" $ whnf last (testEvalEffOPNonTail e)
                                  ]
               ]
 

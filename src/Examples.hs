@@ -1,7 +1,7 @@
 {-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  #-}
 -- Nice Examples for the paper
 module Examples where
-import EffEvScopedOP
+import EffEvScoped
 import Prelude hiding (flip)
 import Data.Char
 import Data.Maybe

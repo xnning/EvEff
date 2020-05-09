@@ -6,7 +6,7 @@
 #-}
 module Ctl( Marker       -- prompt marker
           , markerEq
-          , Ctl          -- control monad
+          , Ctl(..)          -- control monad
           , mprompt      -- install prompt
           , mcontrol     -- yield to a prompt
           , mrun         -- run the control monad

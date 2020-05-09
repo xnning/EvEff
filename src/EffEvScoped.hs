@@ -13,29 +13,19 @@
 #-}
 
 module EffEvScoped(
-              -- Eff,
-              (:*)
+              Eff
+            , (:*)
             , In, (:?)
 
-            , Op(Normal,Tail), opTail
+            , Op, operation, function, value
             , handle          -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
             , perform         -- :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
             , erun            -- :: Eff () a -> a
-
-            , Sub, SubH(..)
-            , open            -- :: Sub e1 e2 => Eff e1 a -> Eff e2 a
-            , openOp
 
             , Local           -- local state
             , local
             , localGet
             , localSet
-
-            -- just for EffEvScopedOP
-            , Context(..)
-            , SubContext(..), withSubContext
-            , under, guard
-            , Eff(..)
             ) where
 
 import Prelude hiding (read,flip)
@@ -141,67 +131,41 @@ withSubContext :: (In h e) => (SubContext h -> Ctl a) -> Eff e a
 withSubContext f
   = Eff (\ctx -> f (subContext ctx))
 
-
-------------------------------------------------------------------------
--- Allow giving closed type signature (like `State Int :* Amb :* ()`)
--- and later open it up in another context
-------------------------------------------------------------------------
-
-class Sub e1 e2 where
-  open :: Eff e1 a -> Eff e2 a
-
-instance Sub () e where
-  open eff = Eff $ \w -> under CNil eff
-
-instance (SubH h, Sub e1 e2) => Sub (h :* e1) (h :* e2) where
-  open eff = Eff $ \(CCons m h ctx) ->
-    under ctx $ open (Eff $ \subctx -> under (CCons m (subH ctx h) subctx) eff)
-
-openOp :: (Sub e1 e2) => Context e2 -> Op a b e2 ans -> Op a b e1 ans
-openOp w (Normal f) = Normal $ \a g ->
-                        Eff $ \_ -> under w $ f a (\b -> open (g b))
-
--- openOp w (Tail f)   = Tail $ \a ->
---                        Eff $ \_ -> under w (f a)
-
-class SubH h where
-  subH :: Sub e1 e2  => Context e2 -> h e2 a -> h e1 a
-
-
-
 ------------------------------------
 -- Operations
 -------------------------------------
 
 -- Operations of type `a -> b` in a handler context `ans`
-data Op a b e ans = Tail   !(Context e -> a -> Ctl b)                       -- tail-resumptive operation (almost all operations)
-                  | Normal !(a -> (b -> Eff e ans) -> Eff e ans) -- general operation with a resumption (exceptions, async/await, etc)
+newtype Op a b e ans = Op { getOp :: Marker ans -> Context e -> a -> Ctl b}
 
+-- general operation with a resumption (exceptions, async/await, etc)
+operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
+operation f = Op (\m ctx x -> Control m (\ctlk ->
+                       let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
+                       in under ctx (f x k)) Pure)
 
+-- tail-resumptive operation (almost all operations)
+function :: (a -> Eff e b) -> Op a b e ans
+function f = Op (\_ ctx x -> under ctx (f x))
+
+value :: b -> Op () b e ans
+value x = function (\() -> return x)
 
 
 -- Given evidence and an operation selector, perform the operation
--- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
-perform :: h :? e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 {-# INLINE perform #-}
-perform selectOp x
-  = withSubContext $ \(SubContext m h ctx) ->
-    case selectOp h of
-      Tail tailop -> tailop ctx x             -- great! directly execute in place without capturing the continuation.
-      Normal op   -> mcontrol m $ \ctlk ->    -- yield up to the handler/prompt m in some context of type `::ans`
-                     let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
-                     in under ctx (op x k)
+perform selectOp x = Eff $ \ctx ->
+  case subContext ctx of
+    SubContext m h ctx -> getOp (selectOp h) m ctx x
 
 guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a
-guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "unscoped resumption"
+guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x
+  else error "unscoped resumption"
 
 instance Eq (Context e) where
   CNil               == CNil                = True
   (CCons m1 h1 ctx1) == (CCons m2 h2 ctx2)  = (markerEq m1 m2) && (ctx1 == ctx2)
-
-
-opTail :: (a -> Eff e b) -> Op a b e ans
-opTail f = Tail (\ctx x -> under ctx (f x))
 
 ------------------------------------
 -- Local state
