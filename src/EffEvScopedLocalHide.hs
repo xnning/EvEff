@@ -61,7 +61,6 @@ data Hide h e = forall ans. Hide !(Marker ans) !(h e ans)
 
 data Context e where
   CCons :: !(Marker ans) -> !(h e ans) -> !(Context e) -> Context (h :* e)
-  LCons :: !(Marker ans) -> !(Local a e ans) -> !(h (Local a :* e) ans) -> !(Context e) -> Context (h :* e)
   HCons :: !(Marker ans) -> !(Hide h' e) -> !(h (h' :* e) ans) -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
 
@@ -104,7 +103,13 @@ handlerRet f h action
   = handler h (do x <- action; return (f x))
 
 
--- Efficient Local state handler
+-- A handler that hides one handler h' that it runs under itself
+handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
+handlerHide h action
+  = Eff (\(CCons m' h' ctx) -> mprompt $ \m -> under (HCons m (Hide m' h') h ctx) action)
+
+
+-- Efficient (and safe) Local state handler
 data Local a e ans = Local (IORef a)
 
 {-# INLINE localGet #-}
@@ -129,22 +134,7 @@ local init action
   = localRet init const action
 
 
-
-handlerLocRetX :: a -> (ans -> a -> b) -> h (Local a :* e) ans -> Eff (h :* e) ans -> Eff e b
-handlerLocRetX init ret h action
-    = Eff (\ctx -> do r <- ctlIO (newIORef init)
-                      x <- mprompt $ \m -> under (LCons m (Local r) h ctx) action
-                      y <- ctlIO (readIORef r)
-                      return (ret x y))
-
-
-
-
-handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
-handlerHide h action
-  = Eff (\(CCons m' h' ctx) -> mprompt $ \m -> under (HCons m (Hide m' h') h ctx) action)
-
-
+-- Expose a local state handler to just one handler's operations
 handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
   = localRet init ret $ handlerHide h action
@@ -156,7 +146,6 @@ handlerLocal init h action
 -- In, Context
 ---------------------------------------------------------
 data SubContext h   = forall e ans. SubContext !(Marker ans) !(h e ans) !(Context e)
-                    | forall a e ans. SubContextLoc !(Marker ans) !(Local a e ans) !(h (Local a :* e) ans) !(Context e)
                     | forall h' e ans. SubContextHide !(Marker ans) !(Hide h' e) !(h (h' :* e) ans) !(Context e)
 
 type h :? e = In h e
@@ -177,12 +166,10 @@ class (iseq ~ HEqual h h') => InEq iseq h h' e  where
 
 instance (h ~ h') => InEq 'True h h' e where
   subContextEq (CCons m h ctx) = SubContext m h ctx
-  subContextEq (LCons m l h ctx) = SubContextLoc m l h ctx
   subContextEq (HCons m hide h ctx) = SubContextHide m hide h ctx
 
 instance ('False ~ HEqual h h', In h e) => InEq 'False h h' e where
   subContextEq (CCons m h ctx)   = subContext ctx
-  subContextEq (LCons m l h ctx) = subContext ctx
   subContextEq (HCons m _ h ctx) = subContext ctx
 
 withSubContext :: (In h e) => (SubContext h -> Ctl a) -> Eff e a
@@ -223,7 +210,7 @@ class SubH h where
 -- Operations
 -------------------------------------
 -- Operations of type `a -> b` in a handler context `ans`
-newtype Op a b e ans = Op { getOp :: Marker ans -> Context e -> a -> Ctl b}
+newtype Op a b e ans = Op { useOp :: Marker ans -> Context e -> a -> Ctl b}
 
 -- Given evidence and an operation selector, perform the operation
 -- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
@@ -232,9 +219,8 @@ perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 perform selectOp x
   = withSubContext $ \ctx ->
     case ctx of
-      SubContext m h ctx      -> getOp (selectOp h) m ctx x
-      SubContextLoc m l h ctx -> getOp (selectOp h) m (CCons m l ctx) x
-      SubContextHide m (Hide m' h') h ctx -> getOp (selectOp h) m (CCons m' h' ctx) x
+      SubContext m h ctx                  -> useOp (selectOp h) m ctx x
+      SubContextHide m (Hide m' h') h ctx -> useOp (selectOp h) m (CCons m' h' ctx) x
 
 -- tail-resumptive operation (almost all operations)
 function :: (a -> Eff e b) -> Op a b e ans

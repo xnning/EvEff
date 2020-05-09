@@ -46,13 +46,13 @@ runMonadic = M.runState countMonadic
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
 
-countExtEff :: (F.Member (FS.State Int) r) => F.Eff r Int
-countExtEff = do n <- FS.get
-                 if n == 0 then return n
-                 else do FS.put (n - 1);
-                         countExtEff
+countExtEff :: (F.Member (FS.State Int) r) => () -> F.Eff r Int
+countExtEff () = do n <- FS.get
+                    if n == 0 then return n
+                    else do FS.put (n - 1);
+                            countExtEff ()
 
-runExtEff n = FS.runState n countExtEff
+runExtEff n = FS.runState n (countExtEff ())
 
 -------------------------------------------------------
 -- EFF LCOAL NON TAIL
