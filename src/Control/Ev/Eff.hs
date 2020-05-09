@@ -23,6 +23,7 @@ module Control.Ev.Eff(
             , value
             , function
             , operation
+            , except
             , perform         -- :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
             , mask
 
@@ -247,6 +248,10 @@ operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
 operation f = Op (\m ctx x -> mcontrol m $ \ctlk ->
                               let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
                               in under ctx (f x k))
+
+-- operation that never resumes
+except :: (a -> Eff e ans) -> Op a b e ans
+except f = operation (\x _ -> f x)
 
 
 guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a

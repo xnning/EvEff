@@ -23,7 +23,7 @@ data State a e ans = State { get :: !(Op () a e ans)
                            , put :: !(Op a () e ans)  }
 
 state :: a -> Eff (State a :* e) ans -> Eff e ans
-state init 
+state init
   = handlerLocal init (State{ get = function (\_ -> localGet),
                               put = function (\x -> localSet x) })
 
@@ -48,12 +48,12 @@ data Exn e ans = Exn { throwError :: forall a. Op String a e ans }
 
 exn :: Eff (Exn :* e) ans -> Eff e (Either String ans)
 exn
-  = handlerRet Right (Exn{ throwError = operation (\msg resume -> return (Left msg) ) })
+  = handlerRet Right (Exn{ throwError = except (\msg -> return (Left msg) ) })
 
 defaultExn :: ans -> Eff (Exn :* e) ans -> Eff e ans
 defaultExn def
-  = handler (Exn{ throwError = operation (\msg resume -> return def) })
+  = handler (Exn{ throwError = except (\msg -> return def) })
 
 maybeExn :: Eff (Exn :* e) ans -> Eff e (Maybe ans)
 maybeExn
-  = handlerRet Just (Exn{ throwError = operation (\msg resume -> return Nothing) })
+  = handlerRet Just (Exn{ throwError = except (\msg -> return Nothing) })
