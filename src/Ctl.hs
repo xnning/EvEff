@@ -16,6 +16,8 @@ module Ctl( Marker       -- prompt marker
           , mlocal
           , mlocalGet
           , mlocalSet
+
+          , ctlIO
           ) where
 
 import Prelude hiding (read,flip)
@@ -127,18 +129,18 @@ mrun (Control _ _ _) = error "Unhandled operation"  -- only if marker escapes th
 -------------------------------------------------------
 newtype Local a = Local (IORef a)
 
-{-# INLINE unsafeIO #-}
-unsafeIO :: IO a -> Ctl a
-unsafeIO io = let x = unsafeInlinePrim io in seq x (Pure x)
+{-# INLINE ctlIO #-}
+ctlIO :: IO a -> Ctl a
+ctlIO io = let x = unsafeInlinePrim io in seq x (Pure x)
 
 
 {-# INLINE mlocalGet #-}
 mlocalGet :: Local a -> b -> Ctl a
-mlocalGet (Local r) x = unsafeIO (seq x $ readIORef r)
+mlocalGet (Local r) x = ctlIO (seq x $ readIORef r)
 
 {-# INLINE mlocalSet #-}
 mlocalSet :: Local a -> a -> Ctl ()
-mlocalSet (Local r) x = unsafeIO (writeIORef r x)
+mlocalSet (Local r) x = ctlIO (writeIORef r x)
 
 
 localOutOfScope :: Local a -> Ctl a
@@ -149,7 +151,7 @@ localOutOfScope local
 
 mlocal :: a -> (Local a -> Ctl b) -> Ctl b
 mlocal init action
-  = do ref <- unsafeIO (newIORef init)
+  = do ref <- ctlIO (newIORef init)
        let local = Local ref
        plocal local (action local)
 

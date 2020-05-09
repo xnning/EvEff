@@ -1,12 +1,13 @@
 {-# LANGUAGE
     FlexibleContexts
+  , TypeOperators
   , AllowAmbiguousTypes -- Extensible Effects
 #-}
 module TestState where
 
 import Criterion.Main
 import Criterion.Types
-import EffEvScoped
+import qualified EffEvScoped as E
 import Library hiding (main)
 
 import Data.IORef
@@ -18,6 +19,7 @@ import qualified Control.Monad.State as M
 import qualified Control.Eff as F
 import qualified Control.Eff.State.Lazy as FS
 
+import EffEvScopedLocalHide
 
 -------------------------------------------------------
 -- PURE
@@ -57,9 +59,29 @@ runExtEff n = FS.runState n countExtEff
 -------------------------------------------------------
 
 lCountNonTail :: Int -> Int
-lCountNonTail n = erun $ lstateNonTail n $
+lCountNonTail n = E.erun $ lstateNonTail n $
            do x <- runCount ()
               return x
+
+-------------------------------------------------------
+-- EFF Safe local
+-------------------------------------------------------
+
+data StateL a e ans = StateL { getl :: Op () a e ans, setl :: Op a () e ans }
+
+statel :: a -> Eff (StateL a :* e) ans -> Eff e ans
+statel init
+  = handlerLocal init (StateL{ getl = function (\() -> localGet), setl = function (\x -> localSet x) })
+
+countl :: (StateL Int :? e) => () -> Eff e Int
+countl ()
+  = do i <- perform getl ()
+       if (i==0) then return i
+        else do perform setl (i - 1)
+                countl ()
+
+runCountl :: Int -> Int
+runCountl n = erun $ statel n $ countl ()
 
 -------------------------------------------------------
 -- TESTS
@@ -72,17 +94,19 @@ effPlain n = bench "eff plain state"    $ whnf count n
 effPar   n = bench "eff parameterized"  $ whnf pCount n
 effLo    n = bench "eff local"          $ whnf lCount n
 effLoNt  n = bench "eff local non tail" $ whnf lCountNonTail n
-
 ext      n = bench "extensible effects "     $ whnf runExtEff n
+effLoc   n = bench "eff safe local "     $ whnf runCountl n
 
 
 comp n  = [ ppure n
           , monadic n
+          , ext n
+          , effLoc n
           , effPlain n
           , effPar n
           , effLo n
           , effLoNt n
-          , ext n ]
+          ]
 iterExp = 6
 
 

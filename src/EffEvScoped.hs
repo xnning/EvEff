@@ -54,6 +54,7 @@ data (h :: * -> * -> *) :* e
 
 data Context e where
   CCons :: !(Marker ans) -> !(h e ans) -> !(Context e) -> Context (h :* e)
+  LCons :: !(Marker ans) -> !(h (Loc a :* e) ans) -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
 
 
@@ -90,6 +91,23 @@ handle h action
 
 erun :: Eff () a -> a
 erun (Eff eff)  = mrun (eff CNil)
+
+
+
+data Loc a e ans = Loc
+
+getLoc :: Eff (Loc a :* e) a
+getLoc = undefined
+
+setLoc :: a -> Eff (Loc a :* e) ()
+setLoc x = undefined
+
+
+handlerLoc :: a -> h (Loc a :* e) ans -> Eff (h :* e) ans -> Eff e ans
+handlerLoc init h action
+    = Eff (\ctx -> mprompt $ \m ->
+                   do under (LCons m h ctx) action)
+
 
 ---------------------------------------------------------
 -- In, Context
