@@ -7,7 +7,17 @@ import GHC.Prim
 import GHC.Exts
 
 ------------
--- State
+-- reader
+data Reader a e ans = Reader { ask :: Op () a e ans }
+
+{-# INLINE reader #-}
+reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
+reader x action = handle
+  Reader{ ask = function (\() -> return x) }
+  action
+
+------------
+-- state
 data State a e ans = State { get_ :: !(Op () a e ans)
                            , put_ :: !(Op a () e ans)  }
 
@@ -22,8 +32,8 @@ put i = (perform put_ i)
 -- A monadic state handler
 -- Note: can be done more efficient with parameterized control
 mstate :: State a e (a -> Eff e ans)
-mstate = State { get_ = opNormal (\() k -> return $ \s -> (k s  >>= \r -> r s ))
-               , put_ = opNormal (\s  k -> return $ \_ -> (k () >>= \r -> r s))
+mstate = State { get_ = operation (\() k -> return $ \s -> (k s  >>= \r -> r s ))
+               , put_ = operation (\s  k -> return $ \_ -> (k () >>= \r -> r s))
                }
 
 runNext :: (State Int :? e) => Int -> Eff e Int
@@ -49,8 +59,8 @@ count n = erun $
 lstate :: a -> Eff (State a :* e) ans -> Eff e ans
 lstate init action
   = local init $ \l ->
-    let h = State { get_ = opTail (\x -> localGet l x),
-                    put_ = opTail (\x -> localSet l x) }
+    let h = State { get_ = function (\x -> localGet l x),
+                    put_ = function (\x -> localSet l x) }
     in handle h action
 
 lCount :: Int -> Int
@@ -70,16 +80,16 @@ newtype Parameter a = Parameter (Local a)
 
 pNormal :: Parameter p -> (a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans
 pNormal (Parameter p) op
-  = opNormal (\x k -> do vx <- localGet p x
-                         let kp (y,vy) = do{ localSet p vy; k y }
-                         op x vx kp)
+  = operation (\x k -> do vx <- localGet p x
+                          let kp (y,vy) = do{ localSet p vy; k y }
+                          op x vx kp)
 
 pTail :: Parameter p -> (a -> p -> Eff e (b,p)) -> Op a b e ans
 pTail (Parameter p) op
- = opTail (\x -> do vx <- localGet p x
-                    (y,vy) <- op x vx
-                    localSet p vy
-                    return y)
+ = function (\x -> do vx <- localGet p x
+                      (y,vy) <- op x vx
+                      localSet p vy
+                      return y)
 
 phandle :: (Parameter p -> h e ans) -> p -> Eff (h :* e) ans -> Eff e ans
 phandle hcreate init action
@@ -111,8 +121,8 @@ writer :: (Monoid a) => a -> Eff (Writer a :* e) ans -> Eff e (a, ans)
 {-# INLINE writer #-}
 writer init action
   = local init $ \l ->
-      let h = Writer { tell_ = opTail (\x -> do y <- localGet l x
-                                                localSet l (mappend y x)) }
+      let h = Writer { tell_ = function (\x -> do y <- localGet l x
+                                                  localSet l (mappend y x)) }
       in do y <- handle h action
             x <- localGet l init
             return (x, y)
@@ -123,7 +133,7 @@ throwError :: In Exn e  => String -> Eff e a
 throwError = perform throwError_
 
 exn :: Exn e (Either String a)
-exn = Exn (opNormal (\msg resume -> return $ Left msg))
+exn = Exn (operation (\msg resume -> return $ Left msg))
 
 
 
@@ -134,17 +144,17 @@ exn = Exn (opNormal (\msg resume -> return $ Left msg))
 lstateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
 lstateNonTail init action
   = local init $ \l ->
-    let h = State { get_ = opNormal (\x k -> do y <- localGet l x; k y),
-                    put_ = opNormal (\x k -> do localSet l x; k ()) }
+    let h = State { get_ = operation (\x k -> do y <- localGet l x; k y),
+                    put_ = operation (\x k -> do localSet l x; k ()) }
     in handle h action
 
 writerNonTail :: (Monoid a) => a -> Eff (Writer a :* e) ans -> Eff e (a, ans)
 {-# INLINE writerNonTail #-}
 writerNonTail init action
   = local init $ \l ->
-      let h = Writer { tell_ = opNormal (\x k -> do y <- localGet l x
-                                                    localSet l (mappend y x)
-                                                    k ()) }
+      let h = Writer { tell_ = operation (\x k -> do y <- localGet l x
+                                                     localSet l (mappend y x)
+                                                     k ()) }
       in do y <- handle h action
             x <- localGet l init
             return (x, y)

@@ -60,3 +60,12 @@ executables:
     - -O3
     dependencies:
     - effev
+
+  TestLayer:
+    main:                TestLayer.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestLayer
+    - -O3
+    dependencies:
+    - effev

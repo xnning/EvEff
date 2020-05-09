@@ -10,14 +10,11 @@ import Criterion.Types
 import qualified EffEvScoped as E
 import Library hiding (main)
 
-import Data.IORef
-import System.IO.Unsafe ( unsafePerformIO )
+import qualified Control.Monad.State as Ms
 
-import qualified Control.Monad.State as M
-
--- "extensible effects"
+-- Extensible Effects
 import qualified Control.Eff as EE
-import qualified Control.Eff.State.Lazy as EES
+import qualified Control.Eff.State.Lazy as EEs
 
 import EffEvScopedLocalHide
 
@@ -33,26 +30,26 @@ runPure n = if n == 0 then n
 -- MONADIC
 -------------------------------------------------------
 
-countMonadic :: M.State Int Int
+countMonadic :: Ms.State Int Int
 countMonadic =
-  do n <- M.get
+  do n <- Ms.get
      if n == 0 then return n
-     else do M.put (n-1)
+     else do Ms.put (n-1)
              countMonadic
 
-runMonadic = M.runState countMonadic
+runMonadic = Ms.runState countMonadic
 
 -------------------------------------------------------
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
 
-countEE :: (EE.Member (EES.State Int) r) => EE.Eff r Int
-countEE = do n <- EES.get
+countEE :: (EE.Member (EEs.State Int) r) => EE.Eff r Int
+countEE = do n <- EEs.get
              if n == 0 then return n
-             else do EES.put (n - 1)
+             else do EEs.put (n - 1)
                      countEE
 
-runEE n = EES.runState n countEE
+runEE n = EEs.runState n countEE
 
 -------------------------------------------------------
 -- EFF LCOAL NON TAIL
@@ -108,9 +105,9 @@ comp n  = [ ppure n
           , effLo n
           , effLoNt n
           , ee n ]
-iterExp = 6
+iterExp = 7
 
 
 main :: IO ()
 main = defaultMain
-       [ bgroup ("2*10^" ++ (show m)) (comp (2*10^m)) | let m = iterExp ]
+       [ bgroup ("10^" ++ (show m)) (comp (10^m)) | let m = iterExp ]

@@ -8,6 +8,18 @@ import GHC.Prim
 import GHC.Exts
 
 ------------
+-- Reader
+------------
+
+data Reader a e ans = Reader { ask :: Op () a e ans }
+
+{-# INLINE reader #-}
+reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
+reader x action = handle
+  Reader{ ask = opTail (\() -> return x) }
+  action
+
+------------
 -- State
 ------------
 

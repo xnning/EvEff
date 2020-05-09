@@ -6,10 +6,6 @@ import Prelude hiding (flip)
 import Data.Char
 import Data.Maybe
 
-operation op = opNormal op
-function f   = opTail f
-value x      = function (\() -> return x)
-
 -- BEGIN:reader
 data Reader a e ans = Reader { ask :: Op () a e ans }
 -- END:reader
@@ -153,7 +149,7 @@ data Output e ans = Output { out :: Op String () e ans }
 output :: Eff (Output :* e) ans -> Eff e (ans,String)
 output
   = handlerLocalRet [] (\x ss -> (x,concat ss)) $ \loc ->
-    Output { out = opTail (\x -> localUpdate loc (x:)) }
+    Output { out = function (\x -> localUpdate loc (x:)) }
 
 -- END:output
 
@@ -217,16 +213,16 @@ newtype Parameter s a = Parameter (Local a)
 
 pNormal :: Parameter s p -> (a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans
 pNormal (Parameter p) op
-  = opNormal (\x k -> do vx <- localGet p x
-                         let kp (y,vy) = do{ localSet p vy; k y }
-                         op x vx kp)
+  = operation (\x k -> do vx <- localGet p x
+                          let kp (y,vy) = do{ localSet p vy; k y }
+                          op x vx kp)
 
 pTail :: Parameter s p -> (a -> p -> Eff e (b,p)) -> Op a b e ans
 pTail (Parameter p) op
- = opTail (\x -> do vx <- localGet p x
-                    (y,vy) <- op x vx
-                    localSet p vy
-                    return y)
+ = function (\x -> do vx <- localGet p x
+                      (y,vy) <- op x vx
+                      localSet p vy
+                      return y)
 
 handleParam :: p -> ((forall a b. ((a -> p -> Eff e (b,p)) -> Op a b e ans)) ->
                      (forall a b. ((a -> p -> ((b,p) -> Eff e ans) -> Eff e ans) -> Op a b e ans)) -> h e ans)
