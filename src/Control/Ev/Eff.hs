@@ -13,32 +13,34 @@
 #-}
 
 module Control.Ev.Eff(
+            -- Effect monad
               Eff
             , runEff          -- :: Eff () a -> a
-            , (:*)
-            , In, (:?)
+            , (:*)            -- h :* e
+            , In, (:?)        -- h :? e
 
             -- operations
             , Op
-            , value
-            , function
-            , operation
-            , except
-            , perform         -- :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
-            , mask
+            , value           -- :: a -> Op () a e ans
+            , function        -- :: (a -> Eff e b) -> Op a b e ans
+            , except          -- :: (a -> Eff e ans) -> Op a b e ans
+            , operation       -- :: (a -> (b -> Eff e ans)) -> Op a b e ans
+            , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 
             -- handling
             , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
-            , handlerRet
-            , handlerHide
+            , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
+            , handlerHide     -- :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
+            , mask            -- :: Eff e ans -> Eff (h :* e) ans
 
             -- local variables
-            , Local
-            , localGet
-            , localSet
-            , localUpdate
-            , handlerLocal
-            , handlerLocalRet
+            , Local           -- Local a e ans
+            , local           -- :: a -> Eff (Local a :* e) ans -> Eff e ans
+            , localGet        -- :: Eff (Local a :* e) a
+            , localSet        -- :: a -> Eff (Local a :* e) ()
+            , localUpdate     -- :: (a -> a) -> Eff (Local a :* e) a
+            , handlerLocal    -- :: a -> h (Local a :* e) ans -> Eff (h :* e) ans -> Eff e ans
+            , handlerLocalRet -- :: a -> (ans -> a -> b) -> h (Local a :* e) b -> Eff (h :* e) ans -> Eff e b
             ) where
 
 import Prelude hiding (read,flip)
@@ -75,12 +77,12 @@ ctail ctx
 -------------------------------------------------------
 newtype Eff e a = Eff (Context e -> Ctl a)
 
-lift :: Ctl a -> Eff e a
 {-# INLINE lift #-}
+lift :: Ctl a -> Eff e a
 lift ctl = Eff (\_ -> ctl)
 
-under :: Context e -> Eff e a -> Ctl a
 {-# INLINE under #-}
+under :: Context e -> Eff e a -> Ctl a
 under ctx (Eff eff)  = eff ctx
 
 
@@ -90,9 +92,9 @@ instance Applicative (Eff e) where
   pure  = return
   (<*>) = ap
 instance Monad (Eff e) where
-  return x      = Eff (\ctx -> pure x)
-  Eff eff >>= f = Eff (\ctx -> do ctl <- eff ctx
-                                  under ctx (f ctl))
+  return x    = Eff (\ctx -> pure x)
+  eff >>= f   = Eff (\ctx -> do x <- under ctx eff
+                                under ctx (f x))
 
 
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
@@ -109,8 +111,7 @@ handlerRet f h action
 
 
 
-
--- A handler that hides one handler h' that it runs under itself
+-- A handler that hides one handler h' in its action, but is exposed to its operations
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
   = Eff (\ctx -> case ctx of
@@ -118,53 +119,21 @@ handlerHide h action
                    _ -> error "Control.Ev.Eff.handlerHide: cannot hide already hidden handlers")
 
 
--- Efficient (and safe) Local state handler
-data Local a e ans = Local (IORef a)
-
-{-# INLINE localGet #-}
-localGet :: Eff (Local a :* e) a
-localGet = Eff (\(CCons _ (Local r) _) -> unsafeIO (readIORef r))
-
-{-# INLINE localSet #-}
-localSet :: a -> Eff (Local a :* e) ()
-localSet x = Eff (\(CCons _ (Local r) _) -> unsafeIO (writeIORef r x))
-
-{-# INLINE localUpdate #-}
-localUpdate :: (a -> a) -> Eff (Local a :* e) a
-localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x); return x }))
-
-local :: a -> Eff (Local a :* e) ans -> Eff e ans
-local init action
-  = do r <- lift $ unsafeIO (newIORef init)
-       handler (Local r) action
-
-
--- Expose a local state handler to just one handler's operations
-handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
-handlerLocalRet init ret h action
-  = local init $ do x <- handlerHide h action
-                    y <- localGet
-                    return (ret x y)
-
-handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
-handlerLocal init h action
-  = local init (handlerHide h action)
-
-
-
+-- ignore the top effect handler
 mask :: Eff e ans -> Eff (h :* e) ans
 mask (Eff f) = Eff (\ctx -> f (ctail ctx))
 
 
 ---------------------------------------------------------
--- In, Context
+-- Select a sub context
 ---------------------------------------------------------
 type h :? e = In h e
+
+data SubContext h  = forall e. SubContext !(Context (h :* e))  -- make `e` existential
 
 class In h e where
   subContext :: Context e -> SubContext h
 
-data SubContext h  = forall e. SubContext !(Context (h :* e))
 
 
 instance (InEq (HEqual h h') h h' w) => In h (h' :* w)  where
@@ -260,3 +229,38 @@ guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "Control.Ev.Eff.guar
 instance Eq (Context e) where
   CNil               == CNil                = True
   (CCons m1 h1 ctx1) == (CCons m2 h2 ctx2)  = (markerEq m1 m2) && (ctx1 == ctx2)
+
+
+--------------------------------------------------------------------------------
+-- Efficient (and safe) Local state handler
+--------------------------------------------------------------------------------
+data Local a e ans = Local (IORef a)
+
+{-# INLINE localGet #-}
+localGet :: Eff (Local a :* e) a
+localGet = Eff (\(CCons _ (Local r) _) -> unsafeIO (readIORef r))
+
+{-# INLINE localSet #-}
+localSet :: a -> Eff (Local a :* e) ()
+localSet x = Eff (\(CCons _ (Local r) _) -> unsafeIO (writeIORef r x))
+
+{-# INLINE localUpdate #-}
+localUpdate :: (a -> a) -> Eff (Local a :* e) a
+localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x); return x }))
+
+local :: a -> Eff (Local a :* e) ans -> Eff e ans
+local init action
+  = do r <- lift $ unsafeIO (newIORef init)
+       handler (Local r) action
+
+
+-- Expose a local state handler to just one handler's operations
+handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
+handlerLocalRet init ret h action
+  = local init $ do x <- handlerHide h action
+                    y <- localGet
+                    return (ret x y)
+
+handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
+handlerLocal init h action
+  = local init (handlerHide h action)
