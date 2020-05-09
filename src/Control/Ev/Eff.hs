@@ -99,7 +99,7 @@ instance Monad (Eff e) where
 
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
-  = Eff (\ctx -> mprompt $ \m ->                  -- set a fresh prompt with marker `m`
+  = Eff (\ctx -> prompt $ \m ->                  -- set a fresh prompt with marker `m`
                  do under (CCons m h ctx) action) -- and call action with the extra evidence
 
 runEff :: Eff () a -> a
@@ -115,7 +115,7 @@ handlerRet f h action
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
   = Eff (\ctx -> case ctx of
-                   CCons m' h' ctx' -> mprompt $ \m -> under (HCons m (Hide m' h') h ctx') action
+                   CCons m' h' ctx' -> prompt $ \m -> under (HCons m (Hide m' h') h ctx') action
                    _ -> error "Control.Ev.Eff.handlerHide: cannot hide already hidden handlers")
 
 
@@ -214,7 +214,7 @@ function f = Op (\_ ctx x -> under ctx (f x))
 
 -- general operation with a resumption (exceptions, async/await, etc)
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
-operation f = Op (\m ctx x -> mcontrol m $ \ctlk ->
+operation f = Op (\m ctx x -> yield m $ \ctlk ->
                               let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
                               in under ctx (f x k))
 

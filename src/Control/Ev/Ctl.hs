@@ -6,20 +6,14 @@
 #-}
 module Control.Ev.Ctl(
             Marker       -- prompt marker
-          , markerEq
+          , markerEq     -- :: Marker a -> Marker b -> Bool
 
           , Ctl          -- control monad
-          , runCtl       -- run the control monad
-          , mprompt      -- install prompt
-          , mcontrol     -- yield to a prompt
-          , kcompose     -- Kleisli composition
-{-
-          , Local        -- local state
-          , mlocal
-          , mlocalGet
-          , mlocalSet
--}
-          , unsafeIO
+          , runCtl       -- run the control monad   :: Ctl a -> a
+          , prompt       -- install prompt          :: Marker a -> Ctl a -> Ctl a
+          , yield        -- yield to a prompt       :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
+
+          , unsafeIO     -- lift IO into Ctl        :: IO a -> Ctl a
           ) where
 
 import Prelude hiding (read,flip)
@@ -77,9 +71,9 @@ data Ctl a = Pure { result :: !a }
                       cont   :: !(b -> Ctl a) }                -- the (partially) build up resumption; (b -> Ctl a) :~: (b -> Ctl ans)` by the time we reach the prompt
 
 -- start yielding (with an initially empty continuation)
-{-# INLINE mcontrol #-}
-mcontrol :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
-mcontrol m op  = Control m op Pure
+{-# INLINE yield #-}
+yield :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
+yield m op  = Control m op Pure
 
 {-# INLINE kcompose #-}
 kcompose :: (b -> Ctl c) -> (a -> Ctl b) -> a -> Ctl c      -- Kleisli composition
@@ -103,22 +97,22 @@ instance Monad Ctl where
 
 
 -- use a prompt with a unique marker (and handle yields to it)
-{-# INLINE prompt #-}
-prompt :: Marker a -> Ctl a -> Ctl a
-prompt m (Pure x) = Pure x
-prompt m (Control n op cont)
-  = let cont' x = prompt m (cont x) in  -- extend the continuation with our own prompt
+{-# INLINE mprompt #-}
+mprompt :: Marker a -> Ctl a -> Ctl a
+mprompt m (Pure x) = Pure x
+mprompt m (Control n op cont)
+  = let cont' x = mprompt m (cont x) in  -- extend the continuation with our own prompt
     case mmatch m n of
       Nothing   -> Control n op cont'   -- keep yielding (but with the extended continuation)
       Just Refl -> op cont'             -- found our prompt, invoke `op`.
                    -- Note: `Refl` proves `a ~ ans` (the existential `ans` in Control)
 
 -- connect creation of a marker with instantiating the prompt
-{-# INLINE mprompt #-}
-mprompt :: (Marker a -> Ctl a) -> Ctl a
-mprompt action
+{-# INLINE prompt #-}
+prompt :: (Marker a -> Ctl a) -> Ctl a
+prompt action
   = freshMarker $ \m ->  -- create a fresh marker
-    prompt m (action m)  -- and install a prompt associated with this marker
+    mprompt m (action m)  -- and install a prompt associated with this marker
 
 -- Run a control monad
 runCtl :: Ctl a -> a
