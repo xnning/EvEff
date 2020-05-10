@@ -5,6 +5,9 @@
 #-}
 module TestState where
 
+import Control.Monad.ST
+import Data.STRef
+
 import Criterion.Main
 import Criterion.Types
 -- import Library hiding (main)
@@ -25,6 +28,20 @@ import Control.Ev.Util
 runPure :: Int -> Int
 runPure n = if n == 0 then n
             else runPure (n-1)
+
+
+countST :: STRef s Int -> ST s Int
+countST r
+  = do i <- readSTRef r
+       if (i==0) then return i
+        else do writeSTRef r (i-1)
+                countST r
+
+
+runCountST :: Int -> Int
+runCountST n
+  = runST $ do r <- newSTRef n
+               countST r
 
 -------------------------------------------------------
 -- MONADIC
@@ -128,6 +145,7 @@ countLinear n
 ppure     n = bench "pure"    $ whnf runPure    n
 monadic   n = bench "monadic" $ whnf runMonadic n
 ee        n = bench "extensible effects "     $ whnf runEE n
+st        n = bench "runST"   $ whnf runCountST n
 
 effFun    n = bench "eff functional state" $ whnf countFun n
 effLoc    n = bench "eff local"            $ whnf countTail n
@@ -137,6 +155,7 @@ effLin    n = bench "eff local linear"     $ whnf countLinear n
 
 comp n  = [ ppure n
           , monadic n
+          , st n
           , ee n
           , effLocal n
           , effLin n

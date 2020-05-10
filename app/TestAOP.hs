@@ -18,6 +18,12 @@ import System.Random
 import Criterion.Main
 import Criterion.Types
 
+-- Extensible Effects
+import qualified Control.Eff as EE
+import qualified Control.Eff.State.Strict as EEs
+import qualified Control.Eff.Writer.Strict as EEw
+
+
 import Control.Ev.Eff
 import qualified Control.Ev.Util as E
 
@@ -35,8 +41,9 @@ type Env = [(String, Int)]
 evalMonad :: Expr -> StateT Env (Writer String) Int
 evalMonad exp =
   do s <- get
-     tell (show s ++ "\n")
-     tell ("Entering eval with " ++ show exp ++ "\n")
+     --tell (show s ++ "\n")
+     --tell ("Entering eval with " ++ show exp ++ "\n")
+     tell ("enter: " ++ show (length s))
      result <-
        case exp of
          Lit x             -> return x
@@ -46,7 +53,7 @@ evalMonad exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalMonad l
                                   y <- evalMonad r
-                                  return (x+y)
+                                  return (x*y)
          Assign x r        -> do  y <- evalMonad r
                                   e <- get
                                   put ((x,y):e)
@@ -57,7 +64,8 @@ evalMonad exp =
          While c b         -> do  x <- evalMonad c
                                   if (x == 0) then return 0
                                     else (evalMonad b >> evalMonad exp)
-     tell ("Exiting eval with " ++ show result ++ "\n")
+     -- tell ("Exiting eval with " ++ show result ++ "\n")
+     tell "exit"
      return result
 
 testEvalMonad e = execWriter (runStateT (evalMonad e) [])
@@ -86,7 +94,7 @@ evalMixin this exp = case exp of
                              _       -> error msg
   Plus l r          -> do  x <- this l
                            y <- this r
-                           return (x+y)
+                           return (x*y)
   Assign x r        -> do  y <- this r
                            e <- get
                            put ((x,y):e)
@@ -102,29 +110,68 @@ evalMixin this exp = case exp of
 -- the logging mixin
 log :: (MonadWriter String m, Show a, Show b) => String -> Open (a -> m b)
 log name super x =  do
-  tell ("Entering " ++ name ++ " with " ++ show x ++ "\n")
+  -- tell ("Entering " ++ name ++ " with " ++ show x ++ "\n")
+  -- tell "enter"
   y <- super x
-  tell ("Exiting " ++ name ++ " with " ++ show y ++ "\n")
+  -- tell ("Exiting " ++ name ++ " with " ++ show y ++ "\n")
+  tell "exit"
   return y
 
 -- the environment dumping mixin
-dump :: (MonadState s m, MonadWriter String m, Show s) => Open (a -> m b)
+dump :: (MonadState [s] m, MonadWriter String m, Show s) => Open (a -> m b)
 dump super arg = do  s <- get
-                     tell (show s ++ "\n")
+                     tell ("enter: " ++ show (length s))
                      super arg
 
 compMixin = new (dump <@> log "eval"  <@> evalMixin)
 testEvalMixin e = evalState (execWriterT (compMixin e)) []
 
 ---------------------------------------------------------
+-- Extensible
+---------------------------------------------------------
+evalEE :: (EE.Member (EEs.State Env) r, EE.Member (EEw.Writer String) r) => Expr -> EE.Eff r Int
+evalEE exp =
+  do (s::Env) <- EEs.get
+     --tell (show s ++ "\n")
+     --tell ("Entering eval with " ++ show exp ++ "\n")
+     EEw.tell ("enter: " ++ show (length s))
+     result <-
+       case exp of
+         Lit x             -> return x
+         Var s             -> do  e <- EEs.get
+                                  case lookup s e of
+                                    Just x  -> return x
+                                    _       -> error "Variable not found!"
+         Plus l r          -> do  x <- evalEE l
+                                  y <- evalEE r
+                                  return (x*y)
+         Assign x r        -> do  y <- evalEE r
+                                  e <- EEs.get
+                                  EEs.put ((x,y):e)
+                                  return y
+         Sequence []       -> return 0
+         Sequence [x]      -> evalEE x
+         Sequence (x:xs)   -> evalEE x >> evalEE (Sequence xs)
+         While c b         -> do  x <- evalEE c
+                                  if (x == 0) then return 0
+                                    else (evalEE b >> evalEE exp)
+     -- tell ("Exiting eval with " ++ show result ++ "\n")
+     EEw.tell "exit"
+     return result
+
+testEvalEE :: Expr -> String -- ((Int,Env),String
+testEvalEE e = snd (EE.run $ EEw.runMonoidWriter (EEs.runState ([]::Env) (evalEE e)))
+
+---------------------------------------------------------
 -- ALGEBRAIC
 ---------------------------------------------------------
 
-evalEff ::  (E.Writer String :? e, E.State Env :? e) => Expr -> Eff e Int
+evalEff ::  (E.Writer String :? e, (E.State Env) :? e) => Expr -> Eff e Int
 evalEff exp =
   do (s::Env) <- perform E.get ()
-     perform E.tell (show s ++ "\n")
-     perform E.tell ("Entering eval with " ++ show exp ++ "\n")
+     --perform E.tell (show s ++ "\n")
+     --perform E.tell ("Entering eval with " ++ show exp ++ "\n")
+     perform E.tell ("enter: " ++ show (length s))
      result <-
        case exp of
          Lit x             -> return x
@@ -134,7 +181,7 @@ evalEff exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalEff l
                                   y <- evalEff r
-                                  return (x+y)
+                                  return (x*y)
          Assign x r        -> do  y <- evalEff r
                                   e <- perform E.get ()
                                   perform E.put ((x,y):e)
@@ -145,11 +192,12 @@ evalEff exp =
          While c b         -> do  x <- evalEff c
                                   if (x == 0) then return 0
                                     else (evalEff b >> evalEff exp)
-     perform E.tell ("Exiting eval with " ++ show result ++ "\n")
+     -- perform E.tell ("Exiting eval with " ++ show result ++ "\n")
+     perform E.tell "exit"
      return result
 
 handleEff ::  Expr -> Eff e (Int, String)
-handleEff e = E.writer "" $
+handleEff e = E.writer $
               E.state ([]::Env) $
               do x <- evalEff e
                  return $ x
@@ -165,12 +213,55 @@ stateNonTail init
                                 E.put = operation (\x k  -> do{ localSet x; k () }) })
 
 handleEffNonTail ::  Expr -> Eff e (Int,String)
-handleEffNonTail e = E.writer "" $
+handleEffNonTail e = E.writer $
                      stateNonTail ([]::Env) $
                      do x <- evalEff e
                         return $ x
 
 testEvalEffNonTail e = snd (runEff (handleEffNonTail e))
+
+
+---------------------------------------------------------
+-- Linear
+---------------------------------------------------------
+
+evalEffL ::  (Linear (E.Writer String) :? e, Linear (E.State Env) :? e) => Expr -> Eff e Int
+evalEffL exp =
+  do (s::Env) <- lperform E.get ()
+     -- perform E.tell (show s ++ "\n")
+     -- perform E.tell ("Entering eval with " ++ show exp ++ "\n")
+     lperform E.tell ("enter: " ++ show (length s))
+     result <-
+       case exp of
+         Lit x             -> return x
+         Var s             -> do  e <- lperform E.get ()
+                                  case lookup s e of
+                                    Just x  -> return x
+                                    _       -> error "Variable not found!"
+         Plus l r          -> do  x <- evalEffL l
+                                  y <- evalEffL r
+                                  return (x*y)
+         Assign x r        -> do  y <- evalEffL r
+                                  e <- lperform E.get ()
+                                  lperform E.put ((x,y):e)
+                                  return y
+         Sequence []       -> return 0
+         Sequence [x]      -> evalEffL x
+         Sequence (x:xs)   -> evalEffL x >> evalEffL (Sequence xs)
+         While c b         -> do  x <- evalEffL c
+                                  if (x == 0) then return 0
+                                    else (evalEffL b >> evalEffL exp)
+     -- perform E.tell ("Exiting eval with " ++ show result ++ "\n")
+     lperform E.tell "exit"
+     return result
+
+handleEffL ::  Expr -> Eff e (Int, String)
+handleEffL e = E.lwriter $
+               E.lstate ([]::Env) $
+               do x <- evalEffL e
+                  return $ x
+
+testEvalEffL e = snd (runEff (handleEffL e))
 
 ---------------------------------------------------------
 -- TEST
@@ -185,24 +276,29 @@ randomBool = getStdRandom random
 -- Generate a random expression tree of size n, consisting only of
 -- Plus nodes and Lit leaves.
 randomExpr :: Int -> IO Expr
-randomExpr 1 = do n <- randomLit
-                  return $ Lit n
+randomExpr 1 = do i <- getStdRandom (randomR(1, n-1))
+                  if (i`mod`2 == 0) then return (Var "x")
+                     else (do n <- randomLit
+                              return $ Lit n)
 randomExpr n = do i <- getStdRandom (randomR(1, n-1))
                   l <- randomExpr i
                   r <- randomExpr (n-i)
-                  return $ Plus l r
+                  return $ if (i`mod`5 == 0) then Sequence [Assign "x" l, r] else Plus l r
 
 makeGroup n =
-  do e <- randomExpr n
+  do e0 <- randomExpr n
+     let e = Sequence [Assign "x" (Lit 0), e0]
      return $ [ bgroup (show n)  [ bench "monad"     $ whnf last (testEvalMonad e)
                                  , bench "mixin"     $ whnf last (testEvalMixin e)
+                                 , bench "extensible" $ whnf last (testEvalEE e)
+                                 , bench "algebraic linear" $ whnf last (testEvalEffL e)
                                  , bench "algebraic" $ whnf last (testEvalEff e)
                                  , bench "algebraic non tail" $ whnf last (testEvalEffNonTail e)
                                  ]
               ]
 
 seed = 42
-n = 10
+n = 10::Int
 
 main = do setStdGen (mkStdGen seed);
           e <- makeGroup (2^n)

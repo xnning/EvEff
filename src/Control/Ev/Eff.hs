@@ -29,6 +29,7 @@ module Control.Ev.Eff(
 
             , Linear(..)
             , lfunction
+            , lvalue
             , lperform
 
 
@@ -238,6 +239,10 @@ lfunction f = Op (\_ ctx x -> case (under ctx (f x)) of
                                 Pure x -> Pure x
                                 _      -> error "Control.Ev.Eff.function_linear: operation declared as linear but it yielded!")
 
+{-# INLINE lvalue #-}
+lvalue :: a -> Op () a e ans
+lvalue x = lfunction (\() -> return x)
+
 
 -- general operation with a resumption (exceptions, async/await, etc)
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
@@ -263,7 +268,7 @@ instance Eq (Context e) where
 --------------------------------------------------------------------------------
 -- Efficient (and safe) Local state handler
 --------------------------------------------------------------------------------
-data Local a e ans = Local (IORef a)
+newtype Local a e ans = Local (IORef a)
 
 {-# INLINE localGet #-}
 localGet :: Eff (Local a :* e) a

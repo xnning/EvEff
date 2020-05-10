@@ -274,6 +274,68 @@ layrunEffderEffNonTail4 n = runEff $
     reader "0" $
     eff n
 
+
+-------------------------------------------------------
+-- Eff Linear
+-------------------------------------------------------
+
+effL :: (Linear (State Integer) :? e) => Integer -> Eff e Integer
+effL n = foldM f 1 [n, n-1 .. 0]
+      where f acc x | x `mod` 5 == 0 = do n <- lperform get ()
+                                          lperform put (n+1)
+                                          return (max acc x)
+            f acc x = return (max acc x)
+
+layerEffL n = runEff $ lstate (0::Integer) (effL n)
+
+layerOverEffL1 n = runEff $
+  lreader (0::Int) $
+  lstate (0::Integer) (effL n)
+
+layerOverEffL2 n = runEff $
+  lreader (0::Int) $
+  lreader (0::Integer) $
+  lstate (0::Integer) (effL n)
+
+layerOverEffL3 n = runEff $
+  lreader (0::Int) $
+  lreader (0::Integer) $
+  lreader True $
+  lstate (0::Integer) (effL n)
+
+layerOverEffL4 n = runEff $
+  lreader (0::Int) $
+  lreader (0::Integer) $
+  lreader True $
+  lreader "0" $
+  lstate (0::Integer) (effL n)
+
+layerUnderEffL1 n = runEff $
+  lstate (0::Integer) $
+  lreader (0::Int) $
+  effL n
+
+layerUnderEffL2 n = runEff $
+  lstate (0::Integer) $
+  lreader (0::Int) $
+  lreader (0::Integer) $
+  effL n
+
+layerUnderEffL3 n = runEff $
+  lstate (0::Integer) $
+  lreader (0::Int) $
+  lreader (0::Integer) $
+  lreader True $
+  effL n
+
+layerUnderEffL4 n = runEff $
+  lstate (0::Integer) $
+  lreader (0::Int) $
+  lreader (0::Integer) $
+  lreader True $
+  lreader "0" $
+  effL n
+
 -------------------------------------------------------
 -- TEST
 -------------------------------------------------------
@@ -297,6 +359,16 @@ comp n = [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "extensible effects under 2"    $ whnf layrunEffderEE2 n
          , bench "extensible effects under 3"    $ whnf layrunEffderEE3 n
          , bench "extensible effects under 4"    $ whnf layrunEffderEE4 n
+
+         , bench "eff linear 0"          $ whnf layerEffL n
+         , bench "eff linear over 1"     $ whnf layerOverEffL1 n
+         , bench "eff linear over 2"     $ whnf layerOverEffL2 n
+         , bench "eff linear over 3"     $ whnf layerOverEffL3 n
+         , bench "eff linear over 4"     $ whnf layerOverEffL4 n
+         , bench "eff linear under 1"    $ whnf layerUnderEffL1 n
+         , bench "eff linear under 2"    $ whnf layerUnderEffL2 n
+         , bench "eff linear under 3"    $ whnf layerUnderEffL3 n
+         , bench "eff linear under 4"    $ whnf layerUnderEffL4 n
 
          , bench "eff 0"          $ whnf layerEff n
          , bench "eff over 1"     $ whnf layerOverEff1 n
