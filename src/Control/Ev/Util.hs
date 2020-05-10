@@ -2,13 +2,10 @@
 module Control.Ev.Util
   ( Reader(Reader,ask)
   , reader
-
   , State(State,get,put)
   , state
-
   , Writer(Writer,tell)
   , writer
-
   , Exn(Exn,throwError)
   , exn, defaultExn, maybeExn
 ) where

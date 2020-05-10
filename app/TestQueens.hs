@@ -8,9 +8,10 @@ import Criterion.Main
 import Control.Monad
 import Control.Applicative
 import Data.Maybe
-import EffEvScoped
 import Debug.Trace
-import Library hiding (main)
+
+import Control.Ev.Eff
+import Control.Ev.Util
 
 safeAddition :: [Int] -> Int -> Int -> Bool
 safeAddition [] _ _ = True
@@ -62,7 +63,7 @@ maybeResult = Choose{ choose_ = operation  (\xs k ->
                                  in fun xs )}
 
 queensMaybe :: Int -> Eff e (Maybe [Int])
-queensMaybe n = handle maybeResult $
+queensMaybe n = handler maybeResult $
                   do ls <- queensComp n
                      return $ Just ls
 
@@ -76,20 +77,20 @@ newtype Stack e a = Stack ([Eff (State (Stack e a) :* e) a])
 firstResult :: Choose (State (Stack e ans) :* e) ans
 firstResult = Choose { choose_ = operation (\xs k ->
                                  case xs of
-                                      []     -> do Stack stack <- get
+                                      []     -> do Stack stack <- perform get ()
                                                    case stack of
                                                      []     -> error "no possible solutions"
-                                                     (z:zs) -> do put $ Stack zs
+                                                     (z:zs) -> do perform put $! Stack zs
                                                                   z
-                                      (y:ys) -> do Stack zs <- get
-                                                   put $ Stack (map k ys ++ zs)
+                                      (y:ys) -> do Stack zs <- perform get ()
+                                                   perform put $! Stack (map k ys ++ zs)
                                                    k y
                                  )
                     }
 
 handleFirst :: Eff (Choose :* (State (Stack e ans) :* e)) ans -> Eff e ans
-handleFirst comp = lstate (Stack []) $
-                   handle firstResult $
+handleFirst comp = state (Stack []) $
+                   handler firstResult $
                    comp
 
 queensFirst :: Int -> Eff () [Int]
@@ -101,8 +102,8 @@ queensFirst n = handleFirst $
 --
 
 pureTest       n = head $ queensPure n
-maybeTest      n = erun $ queensMaybe n
-firstTest      n = erun $ queensFirst n
+maybeTest      n = runEff $ queensMaybe n
+firstTest      n = runEff $ queensFirst n
 
 comp n = [ bench "monad"          $ whnf pureTest n
          , bench "effect maybe"   $ whnf maybeTest n
