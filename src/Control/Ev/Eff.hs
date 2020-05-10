@@ -127,13 +127,10 @@ handlerRet f h action
   = handler h (do x <- action; return (f x))
 
 
-
 -- A handler `h` that hides one handler `h'` in its action, but `h'` is visible in the operation definitions of `h`
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
-  = Eff (\(CCons m' h' g' ctx') -> prompt $ \m -> --let g ctx = CCons m' h' g' ctx
-                                                  under (CCons m h (CTCons m' h' g') ctx') action)
-
+  = Eff (\(CCons m' h' g' ctx') -> prompt (\m -> under (CCons m h (CTCons m' h' g') ctx') action))
 
 
 -- ignore the top effect handler
@@ -206,14 +203,14 @@ class SubH h where
 -- Operations
 -------------------------------------
 -- Operations of type `a -> b` in a handler context `ans`
-data Op a b e ans = Op { useOp :: !(Marker ans -> Context e -> a -> Ctl b) }
+data Op a b e ans = Op { applyOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 
 -- Given evidence and an operation selector, perform the operation
 -- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
 {-# INLINE perform #-}
 perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 perform selectOp x
-  = withSubContext (\(SubContext (CCons m h g ctx)) -> useOp (selectOp h) m (applyT g ctx) x)
+  = withSubContext (\(SubContext (CCons m h g ctx)) -> applyOp (selectOp h) m (applyT g ctx) x)
 
 -- tail-resumptive value operation (reader)
 {-# INLINE value #-}

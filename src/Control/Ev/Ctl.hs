@@ -1,6 +1,8 @@
------------------------------------------------------
--- Copyright 2020, Daan Leijen.
------------------------------------------------------
+-------------------------------------------------------------------
+-- Copyright 2020, Microsoft Research, Daan Leijen, Ningning Xie.
+-- This is free software, see the LICENSE file at the root of the
+-- distribution for details.
+-------------------------------------------------------------------
 {-# LANGUAGE GADTs,                       -- match on Refl for type equality
              ExistentialQuantification    -- forall b ans. Control ...
 #-}

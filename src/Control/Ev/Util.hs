@@ -1,3 +1,8 @@
+-------------------------------------------------------------------
+-- Copyright 2020, Microsoft Research, Daan Leijen, Ningning Xie.
+-- This is free software, see the LICENSE file at the root of the
+-- distribution for details.
+-------------------------------------------------------------------
 {-# LANGUAGE TypeOperators, FlexibleContexts, Rank2Types, MagicHash #-}
 module Control.Ev.Util
   ( Reader(Reader,ask)
@@ -6,8 +11,8 @@ module Control.Ev.Util
   , state
   , Writer(Writer,tell)
   , writer
-  , Exn(Exn,throwError)
-  , exn, defaultExn, maybeExn
+  , Except(Except,throwError)
+  , catchError, exceptEither, exceptMaybe, exceptDefault
 ) where
 
 import Control.Ev.Eff
@@ -38,7 +43,7 @@ state init
 
 
 ------------
--- Write
+-- Writer
 ------------
 
 data Writer a e ans = Writer { tell :: !(Op a () e ans) }
@@ -51,19 +56,23 @@ writer
 
 
 ------------
--- Exn
+-- Except
 ------------
 
-data Exn e ans = Exn { throwError :: forall a. Op String a e ans }
+data Except a e ans = Except { throwError :: forall b. Op a b e ans }
 
-exn :: Eff (Exn :* e) ans -> Eff e (Either String ans)
-exn
-  = handlerRet Right (Exn{ throwError = except (\msg -> return (Left msg) ) })
+catchError :: Eff (Except a :* e) ans -> (a -> Eff e ans) -> Eff e ans
+catchError action h
+  = handler (Except{ throwError = except (\x -> h x) }) action
 
-defaultExn :: ans -> Eff (Exn :* e) ans -> Eff e ans
-defaultExn def
-  = handler (Exn{ throwError = except (\msg -> return def) })
+exceptEither :: Eff (Except a :* e) ans -> Eff e (Either a ans)
+exceptEither
+  = handlerRet Right (Except{ throwError = except (\x -> return (Left x) ) })
 
-maybeExn :: Eff (Exn :* e) ans -> Eff e (Maybe ans)
-maybeExn
-  = handlerRet Just (Exn{ throwError = except (\msg -> return Nothing) })
+exceptDefault :: ans -> Eff (Except a :* e) ans -> Eff e ans
+exceptDefault def
+  = handler (Except{ throwError = except (\_ -> return def) })
+
+exceptMaybe :: Eff (Except a :* e) ans -> Eff e (Maybe ans)
+exceptMaybe
+  = handlerRet Just (Except{ throwError = except (\_ -> return Nothing) })
