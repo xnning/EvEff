@@ -61,6 +61,17 @@ executables:
     dependencies:
     - effev
 
+  ProfState:
+    main:                TestState.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestState
+    - -O3
+    - -fforce-recomp
+    - -ddump-simpl -dsuppress-idinfo -dsuppress-coercions -dsuppress-type-applications -dsuppress-uniques -dsuppress-module-prefixes -ddump-to-file
+    dependencies:
+    - effev
+
   TestLayer:
     main:                TestLayer.hs
     source-dirs:         app
