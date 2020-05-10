@@ -435,7 +435,7 @@ local init action
 -- | Create a new handler for @h@ which can access the /locally isolated state/ @Local a@.
 -- This is fully local to the handler @h@ only and not visible in the @action@ as
 -- apparent from its effect context (which does /not/ contain @Local a@). The
--- @ret@ argument can be used to transform the final result type.
+-- @ret@ argument can be used to transform the final result combined with the final state.
 {-# INLINE handlerLocalRet #-}
 handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) b) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
