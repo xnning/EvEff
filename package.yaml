@@ -85,3 +85,13 @@ executables:
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
+
+  TestPyth:
+    main:                TestPyth.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestPyth
+    - -O3
+    - -Wno-simplifiable-class-constraints
+    dependencies:
+    - effev
