@@ -31,18 +31,14 @@ queensPure n = foldM f [] [1..n] where
 -- Choose
 ------------------------
 
-data Choose e ans = Choose { choose_ :: forall b. Op [b] b e ans }
-
-choose :: (Choose :? e) => [b] -> Eff e b
-choose xs = perform choose_ xs
-
+data Choose e ans = Choose { choose :: forall b. Op [b] b e ans }
 
 failed :: (Choose :? e) => Eff e b
-failed = choose []
+failed = perform choose []
 
 queensComp :: (Choose :? e) => Int -> Eff e [Int]
 queensComp n = foldM f [] [1..n] where
-    f rows _ = do row <- choose [1..n]
+    f rows _ = do row <- perform choose [1..n]
                   if (safeAddition rows row 1)
                     then return (row : rows)
                     else failed
@@ -53,7 +49,7 @@ queensComp n = foldM f [] [1..n] where
 
 maybeResult :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
 maybeResult
-  = handlerRet Just (Choose{ choose_ = operation $ \xs k ->
+  = handlerRet Just (Choose{ choose = operation $ \xs k ->
     let firstJust ys = case ys of
                          []      -> return Nothing
                          (y:yy) -> do res <- k y
@@ -76,7 +72,7 @@ newtype Stack e a = Stack ([Eff (Local (Stack e a) :* e) a])
 firstResult :: Eff (Choose :* e) ans -> Eff e ans -- Choose (State (Stack e ans) :* e) ans
 firstResult
   = handlerLocal (Stack []) $
-    Choose { choose_ = operation (\xs k ->
+    Choose { choose = operation (\xs k ->
       case xs of
         []     -> do (Stack stack) <- localGet
                      case stack of
@@ -85,7 +81,6 @@ firstResult
                                     z
         (y:ys) -> do localUpdate (\(Stack zs) -> Stack (map k ys ++ zs))
                      k y
-
    )}
 
 queensFirst :: Int -> Eff () [Int]

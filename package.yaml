@@ -40,6 +40,7 @@ executables:
     ghc-options:
     - -main-is TestAOP
     - -O3
+    - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
 
@@ -49,6 +50,7 @@ executables:
     ghc-options:
     - -main-is TestQueens
     - -O3
+    - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
 
@@ -58,6 +60,7 @@ executables:
     ghc-options:
     - -main-is TestState
     - -O3
+    - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
 
@@ -65,6 +68,7 @@ executables:
     main:                TestState.hs
     source-dirs:         app
     ghc-options:
+    - -Wno-simplifiable-class-constraints
     - -main-is TestState
     - -O3
     - -fforce-recomp
@@ -78,5 +82,16 @@ executables:
     ghc-options:
     - -main-is TestLayer
     - -O3
+    - -Wno-simplifiable-class-constraints
+    dependencies:
+    - effev
+
+  TestPyth:
+    main:                TestPyth.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestPyth
+    - -O3
+    - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
