@@ -246,8 +246,8 @@ localSet :: a -> Eff (Local a :* e) ()
 localSet x = Eff (\(CCons _ (Local r) _) -> unsafeIO (writeIORef r x))
 
 {-# INLINE localUpdate #-}
-localUpdate :: (a -> a) -> Eff (Local a :* e) a
-localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x); return x }))
+localUpdate :: (a -> a) -> Eff (Local a :* e) ()
+localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
 
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
