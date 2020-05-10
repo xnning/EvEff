@@ -69,23 +69,30 @@ infixr 5 :*
 -------------------------------------------------------
 data (h :: * -> * -> *) :* e
 
-
 data Context e where
   CCons :: !(Marker ans) -> !(h e' ans) -> !(ContextT e e') -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
 
+-- A context transformer: this could be defined as a regular function as
+--  `type ContextT e e' = Context e -> Context e'`
+-- but we use an explicit representation as a GADT for the identity and
+-- `CCons` versions of the function as that allows the compiler to optimize
+-- much better for the cases where the function is known.
 data ContextT e e' where
-  CTId  :: ContextT e e
-  CTCons:: Marker ans -> h e' ans -> !(ContextT e e') -> ContextT e (h :* e)
-  -- Fun :: !(Context e -> Context e') -> ContextT e e'
+  CTCons :: Marker ans -> h e' ans -> !(ContextT e e') -> ContextT e (h :* e)
+  CTId   :: ContextT e e
+  -- CTFun :: !(Context e -> Context e') -> ContextT e e'
 
+-- apply a context transformer
 applyT :: ContextT e e' -> Context e -> Context e'
-applyT (CTId) ctx         = ctx
 applyT (CTCons m h g) ctx = CCons m h g ctx
+applyT (CTId) ctx         = ctx
 --applyT (CTFun f) ctx = f ctx
 
+-- the tail of a context
 ctail :: Context (h :* e) -> Context e
 ctail (CCons _ _ _ ctx)   = ctx
+
 
 -------------------------------------------------------
 -- The Effect monad
@@ -240,7 +247,7 @@ guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a
 guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "Control.Ev.Eff.guard: unscoped resumption under a different handler context"
 
 instance Eq (Context e) where
-  (CCons m1 _ _ ctx1)  == (CCons m2 _ _ ctx2)    = (markerEq m1 m2) && (ctx1 == ctx2)
+  (CCons m1 _ _ ctx1)  == (CCons m2 _ _ ctx2)   = (markerEq m1 m2) && (ctx1 == ctx2)
   CNil                 == CNil                  = True
 
 
