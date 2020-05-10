@@ -218,6 +218,12 @@ handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
   = Eff (\(CCons m' h' g' ctx') -> prompt (\m -> under (CCons m h (CTCons m' h' g') ctx') action))
 
+handlerHideRetEff :: (ans -> Eff (h' :* e) b) -> h (h' :* e) b -> Eff (h :* e) ans -> Eff (h' :* e) b
+handlerHideRetEff ret h action
+  = Eff (\ctx@(CCons m' h' g' ctx') -> do prompt (\m -> do x <- under (CCons m h (CTCons m' h' g') ctx') action
+                                                           under ctx (ret x)))
+
+
 
 -- | Mask the top effect handler in the give action (i.e. if a operation is performed
 -- on an @h@ effect inside @e@ the top handler is ignored).
@@ -431,11 +437,9 @@ local init action
 -- apparent from its effect context (which does /not/ contain @Local a@). The
 -- @ret@ argument can be used to transform the final result type.
 {-# INLINE handlerLocalRet #-}
-handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
+handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) b) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
-  = local init $ do x <- handlerHide h action
-                    y <- localGet
-                    return (ret x y)
+  = local init $ handlerHideRetEff (\x -> do{ y <- localGet; return (ret x y)}) h action
 
 -- | Create a new handler for @h@ which can access the /locally isolated state/ @Local a@.
 -- This is fully local to the handler @h@ only and not visible in the @action@ as

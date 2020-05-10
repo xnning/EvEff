@@ -88,18 +88,44 @@ instance (NDet :? e) => MonadPlus (Eff e) where
                    if x then m1 else m2
 
 -- slow version
-makeChoiceA0 :: Alternative f => Eff (NDet :* e) a -> Eff e (f a)
+makeChoiceA0 :: Alternative m => Eff (NDet :* e) a -> Eff e (m a)
 makeChoiceA0 =  handlerRet pure
                    NDet{ zero = operation (\_ _ -> return empty)
                        , plus = operation (\_ k -> liftM2 (<|>) (k True) (k False))
                        }
 
--- do we have a fast version? hmm
 
 testEff = pyth20 == ((runEff $ makeChoiceA0 $ pyth 20) :: [(Int,Int,Int)])
 
 pythEff n = length $
-            ((runEff $ makeChoiceA0 $ pyth n) :: [(Int,Int,Int)])
+           ((runEff $ makeChoiceA0 $ pyth n) :: [(Int,Int,Int)])
+
+
+-- do we have a fast version? hmm
+{-
+newtype Q e m a = Q [Eff (Local (Q e m a) :* e) (m a)]
+
+makeChoiceA :: Alternative m => Eff (NDet :* e) a -> Eff e (m a)
+makeChoiceA =  handlerLocalRet (Q []) (\x _ -> pure x) $
+               NDet{ zero = operation (\_ k -> do (Q q) <- localGet
+                                                  case q of
+                                                    (m:ms) -> localPut (Q ms) >> m
+                                                    []     -> return empty
+                                      )
+                   , plus = operation (\_ k -> do (Q q) <- localGet
+                                                  localPut (Q (k False : q))
+                                                  liftM2 (<|>) (k True) (do (Q q) <- localGet
+                                                                            case q of
+                                                                              (m:ms) -> localPut (Q ms) >> m
+                                                                              [] -> return empty))
+                   }
+
+
+testEffFast = pyth20 == ((runEff $ makeChoiceA $ pyth 20) :: [(Int,Int,Int)])
+
+pythEffFast n = length $
+                ((runEff $ makeChoiceA $ pyth n) :: [(Int,Int,Int)])
+-}
 
 -------------------------------------------------------
 -- TEST
@@ -108,7 +134,8 @@ pythEff n = length $
 comp n = [ bench "monadic"            $ whnf pythMonadic n
          , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
-         , bench "eff"                $ whnf pythEff n
+         , bench "eff slow"  $ whnf pythEff n
+--         , bench "eff fast"  $ whnf pythEffFast n
          ]
 
 num :: Int
