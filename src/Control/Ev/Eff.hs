@@ -72,10 +72,8 @@ data Context e where
   CNil  :: Context ()
 
 ctail :: Context (h :* e) -> Context e
-ctail ctx
-  = case ctx of
-      CCons _ _ ctx'   -> ctx'
-      HCons _ _ _ ctx' -> ctx'
+ctail (CCons _ _ ctx)   = ctx
+ctail (HCons _ _ _ ctx) = ctx
 
 
 -------------------------------------------------------
@@ -117,7 +115,7 @@ handlerRet f h action
 
 
 
--- A handler that hides one handler h' in its action, but is exposed to its operations
+-- A handler `h` that hides one handler `h'` in its action, but `h'` is visible in the operation definitions of `h`
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
   = Eff (\ctx -> case ctx of
@@ -133,14 +131,12 @@ mask (Eff f) = Eff (\ctx -> f (ctail ctx))
 ---------------------------------------------------------
 -- Select a sub context
 ---------------------------------------------------------
-type h :? e = In h e
+type h :? e = In h e   -- is `h` in the effect context `e` ?
 
 data SubContext h  = forall e. SubContext !(Context (h :* e))  -- make `e` existential
 
 class In h e where
   subContext :: Context e -> SubContext h
-
-
 
 instance (InEq (HEqual h h') h h' w) => In h (h' :* w)  where
   subContext = subContextEq
@@ -251,8 +247,8 @@ lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -
 lperform selectOp x
   = withSubContext $ \(SubContext sctx) ->
     let ctl = case sctx of
-                   CCons m h ctx              -> useOp (selectOp (unlinear h)) m ctx x
-                   HCons m (Hide m' h') h ctx -> useOp (selectOp (unlinear h)) m (CCons m' h' ctx) x
+                CCons m h ctx              -> useOp (selectOp (unlinear h)) m ctx x
+                HCons m (Hide m' h') h ctx -> useOp (selectOp (unlinear h)) m (CCons m' h' ctx) x
     in case ctl of
          Pure _ -> ctl
          _      -> error "Control.Ev.Eff.lperform: linear operation yielded!"
