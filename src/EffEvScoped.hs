@@ -76,11 +76,11 @@ instance Monad (Eff e) where
 
 handle :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handle h action
-  = Eff (\ctx -> mprompt $ \m ->                  -- set a fresh prompt with marker `m`
+  = Eff (\ctx -> prompt $ \m ->                  -- set a fresh prompt with marker `m`
                  do under (CCons m h ctx) action) -- and call action with the extra evidence
 
 erun :: Eff () a -> a
-erun (Eff eff)  = mrun (eff CNil)
+erun (Eff eff)  = runCtl (eff CNil)
 
 
 
@@ -95,7 +95,7 @@ setLoc x = undefined
 
 handlerLoc :: a -> h (Loc a :* e) ans -> Eff (h :* e) ans -> Eff e ans
 handlerLoc init h action
-    = Eff (\ctx -> mprompt $ \m ->
+    = Eff (\ctx -> prompt $ \m ->
                    do under (LCons m h ctx) action)
 
 

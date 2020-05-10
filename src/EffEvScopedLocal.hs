@@ -91,11 +91,11 @@ instance Monad (Eff e) where
 
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
-  = Eff (\ctx -> mprompt $ \m ->                  -- set a fresh prompt with marker `m`
+  = Eff (\ctx -> prompt $ \m ->                  -- set a fresh prompt with marker `m`
                  do under (CCons m h ctx) action) -- and call action with the extra evidence
 
 erun :: Eff () a -> a
-erun (Eff eff)  = mrun (eff CNil)
+erun (Eff eff)  = runCtl (eff CNil)
 
 handlerRet f h action
   = handler h (do x <- action; return (f x))
@@ -105,17 +105,17 @@ handlerRet f h action
 newtype Loc a e ans = Loc (IORef a)
 
 getLoc :: Eff (Loc a :* e) a
-getLoc = Eff (\(CCons _ (Loc r) _) -> ctlIO (readIORef r))
+getLoc = Eff (\(CCons _ (Loc r) _) -> unsafeIO (readIORef r))
 
 setLoc :: a -> Eff (Loc a :* e) ()
-setLoc x = Eff (\(CCons _ (Loc r) _) -> ctlIO (writeIORef r x))
+setLoc x = Eff (\(CCons _ (Loc r) _) -> unsafeIO (writeIORef r x))
 
 
 handlerLocRet :: a -> (ans -> a -> b) -> h (Loc a :* e) ans -> Eff (h :* e) ans -> Eff e b
 handlerLocRet init ret h action
-    = Eff (\ctx -> do r <- ctlIO (newIORef init)
-                      x <- mprompt $ \m -> under (LCons m (Loc r) h ctx) action
-                      y <- ctlIO (readIORef r)
+    = Eff (\ctx -> do r <- unsafeIO (newIORef init)
+                      x <- prompt $ \m -> under (LCons m (Loc r) h ctx) action
+                      y <- unsafeIO (readIORef r)
                       return (ret x y))
 
 handlerLoc init h action
@@ -208,7 +208,7 @@ function f = Op (\_ ctx x -> under ctx (f x))
 
 -- general operation with a resumption (exceptions, async/await, etc)
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
-operation f = Op (\m ctx x -> mcontrol m $ \ctlk ->
+operation f = Op (\m ctx x -> yield m $ \ctlk ->
                        let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
                        in under ctx (f x k))
 

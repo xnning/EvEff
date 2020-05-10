@@ -7,8 +7,7 @@ module TestState where
 
 import Criterion.Main
 import Criterion.Types
-import qualified EffEvScoped as E
-import Library hiding (main)
+-- import Library hiding (main)
 
 import qualified Control.Monad.State as Ms
 
@@ -16,7 +15,7 @@ import qualified Control.Monad.State as Ms
 import qualified Control.Eff as EE
 import qualified Control.Eff.State.Lazy as EEs
 
-import EffEvScopedLocalHide
+import Control.Ev.Eff
 
 -------------------------------------------------------
 -- PURE
@@ -43,82 +42,100 @@ runMonadic = Ms.runState countMonadic
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
 
-countEE :: (EE.Member (EEs.State Int) r) => EE.Eff r Int
-countEE = do n <- EEs.get
-             if n == 0 then return n
-             else do EEs.put (n - 1)
-                     countEE
+countEE :: (EE.Member (EEs.State Int) r) => () -> EE.Eff r Int
+countEE ()= do n <- EEs.get
+               if n == 0 then return n
+               else do EEs.put (n - 1)
+                       countEE ()
 
-runEE n = EEs.runState n countEE
-
--------------------------------------------------------
--- EFF LCOAL NON TAIL
--------------------------------------------------------
-
-lCountNonTail :: Int -> Int
-lCountNonTail n = E.erun $ lstateNonTail n $
-           do x <- runCount ()
-              return x
+runEE n = EEs.runState n (countEE ())
 
 -------------------------------------------------------
--- EFF Safe local
+-- Eff local tail
 -------------------------------------------------------
 
-data StateL a e ans = StateL { getl :: Op () a e ans, setl :: Op a () e ans }
+data State a e ans = State { get :: !(Op () a e ans), set :: !(Op a () e ans) }
 
-statel :: a -> Eff (StateL a :* e) ans -> Eff e ans
-statel init
-  = handlerLocal init (StateL{ getl = function (\() -> localGet), setl = function (\x -> localSet x) })
+state :: a -> Eff (State a :* e) ans -> Eff e ans
+state init
+  = handlerLocal init (State{ get = function (\() -> localGet), set = function localSet })
 
-countl :: (StateL Int :? e) => () -> Eff e Int
-countl ()
-  = do i <- perform getl ()
+-- runCount :: () -> Eff (State Int :* e) Int
+runCount :: (State Int :? e) =>  Eff e Int
+runCount
+  = do i <- perform get ()
        if (i==0) then return i
-        else do perform setl (i - 1)
-                countl ()
-
-runCountl :: Int -> Int
-runCountl n = erun $ statel n $ countl ()
+        else do perform set (i - 1)
+                runCount
 
 
-countl2 :: (StateL Int :? e) => Eff e Int
-countl2
-  = do i <- perform getl ()
+countTail :: Int -> Int
+countTail n
+  = runEff $ state n $ runCount
+
+
+stateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
+stateNonTail init
+  = handlerLocal init (State{ get = operation (\() k -> do{ x <- localGet; k x }),
+                              set = operation (\x k  -> do{ localSet x; k () }) })
+
+countNonTail :: Int -> Int
+countNonTail n
+  = runEff $ stateNonTail n $ runCount
+
+
+stateFun :: a -> Eff (State a :* e) ans -> Eff e ans
+stateFun init action
+  = do f <- handler (State { get = operation (\() k -> return $ \s -> (k s  >>= \r -> r s ))
+                           , set = operation (\s  k -> return $ \_ -> (k () >>= \r -> r s))
+                           })
+                    (do x <- action
+                        return (\s -> return x))
+       f init
+
+countFun :: Int -> Int
+countFun n
+  = runEff $ stateFun n $ runCount
+
+
+-- runCount :: () -> Eff (State Int :* e) Int
+runCountLoc :: Eff (Local Int :* e) Int
+runCountLoc
+  = do i <- localGet
        if (i==0) then return i
-        else do perform setl (i - 1)
-                countl2
+        else do localSet (i - 1)
+                runCountLoc
 
-runCountl2 :: Int -> Int
-runCountl2 n = erun $ statel n $ countl2
+
+countLoc :: Int -> Int
+countLoc n
+  = runEff $ local n $ runCountLoc
+
+
 
 -------------------------------------------------------
 -- TESTS
 -------------------------------------------------------
 
-ppure          n = bench "pure"    $ whnf runPure    n
-monadic        n = bench "monadic" $ whnf runMonadic n
+ppure     n = bench "pure"    $ whnf runPure    n
+monadic   n = bench "monadic" $ whnf runMonadic n
+ee        n = bench "extensible effects "     $ whnf runEE n
 
-effPlain n = bench "eff plain state"    $ whnf count n
-effPar   n = bench "eff parameterized"  $ whnf pCount n
-effLo    n = bench "eff local"          $ whnf lCount n
-effLoNt  n = bench "eff local non tail" $ whnf lCountNonTail n
-effLoc   n = bench "eff safe local "     $ whnf runCountl n
-effLoc2  n = bench "eff safe local; no unit "     $ whnf runCountl2 n
-
-ee       n = bench "extensible effects "     $ whnf runEE n
-
+effFun    n = bench "eff functional state" $ whnf countFun n
+effLoc    n = bench "eff local"            $ whnf countTail n
+effLocNt  n = bench "eff local non tail"   $ whnf countNonTail n
+effLocal  n = bench "eff local builtin"    $ whnf countLoc n
 
 comp n  = [ ppure n
           , monadic n
+          , ee n
+          , effLocal n
           , effLoc n
-          , effLoc2 n
-          , effPlain n
-          , effPar n
-          , effLo n
-          , effLoNt n
-          , ee n ]
-iterExp = 7
+          , effLocNt n
+          , effFun n
+          ]
 
+iterExp = 7
 
 main :: IO ()
 main = defaultMain
