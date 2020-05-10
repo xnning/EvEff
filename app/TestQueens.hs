@@ -51,51 +51,45 @@ queensComp n = foldM f [] [1..n] where
 -- MAYBE
 ------------------------
 
-maybeResult :: Choose e (Maybe ans)
-maybeResult = Choose{ choose_ = operation  (\xs k ->
-                                 let fun ys = case ys of
-                                      []      -> return Nothing
-                                      (y:ys') -> do res <- k y
-                                                    case res of
-                                                      Nothing -> fun ys'
-                                                      _       -> return res
-
-                                 in fun xs )}
+maybeResult :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
+maybeResult
+  = handlerRet Just (Choose{ choose_ = operation $ \xs k ->
+    let firstJust ys = case ys of
+                         []      -> return Nothing
+                         (y:yy) -> do res <- k y
+                                      case res of
+                                        Nothing -> firstJust yy
+                                        _       -> return res
+    in firstJust xs })
 
 queensMaybe :: Int -> Eff e (Maybe [Int])
-queensMaybe n = handler maybeResult $
-                  do ls <- queensComp n
-                     return $ Just ls
+queensMaybe n = maybeResult $ queensComp n
+
 
 ------------------------
 -- FIRST
 ------------------------
 
-newtype Stack e a = Stack ([Eff (State (Stack e a) :* e) a])
+newtype Stack e a = Stack ([Eff (Local (Stack e a) :* e) a])
 
 
-firstResult :: Choose (State (Stack e ans) :* e) ans
-firstResult = Choose { choose_ = operation (\xs k ->
-                                 case xs of
-                                      []     -> do Stack stack <- perform get ()
-                                                   case stack of
-                                                     []     -> error "no possible solutions"
-                                                     (z:zs) -> do perform put $! Stack zs
-                                                                  z
-                                      (y:ys) -> do Stack zs <- perform get ()
-                                                   perform put $! Stack (map k ys ++ zs)
-                                                   k y
-                                 )
-                    }
+firstResult :: Eff (Choose :* e) ans -> Eff e ans -- Choose (State (Stack e ans) :* e) ans
+firstResult
+  = handlerLocal (Stack []) $
+    Choose { choose_ = operation (\xs k ->
+      case xs of
+        []     -> do (Stack stack) <- localGet
+                     case stack of
+                       []     -> error "no possible solutions"
+                       (z:zs) -> do localSet (Stack zs)
+                                    z
+        (y:ys) -> do localUpdate (\(Stack zs) -> Stack (map k ys ++ zs))
+                     k y
 
-handleFirst :: Eff (Choose :* (State (Stack e ans) :* e)) ans -> Eff e ans
-handleFirst comp = state (Stack []) $
-                   handler firstResult $
-                   comp
+   )}
 
 queensFirst :: Int -> Eff () [Int]
-queensFirst n = handleFirst $
-                queensComp n
+queensFirst n = firstResult $ queensComp n
 
 
 ------------------------
