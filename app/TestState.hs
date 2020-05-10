@@ -43,19 +43,19 @@ runMonadic = Ms.runState countMonadic
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
 
-countEE :: (EE.Member (EEs.State Int) r) => () -> EE.Eff r Int
-countEE ()= do n <- EEs.get
-               if n == 0 then return n
-               else do EEs.put (n - 1)
-                       countEE ()
+countEE :: (EE.Member (EEs.State Int) r) => EE.Eff r Int
+countEE = do n <- EEs.get
+             if n == 0 then return n
+              else do EEs.put (n - 1)
+                      countEE
 
-runEE n = EEs.runState n (countEE ())
+runEE n = EEs.runState n countEE
 
 -------------------------------------------------------
 -- Eff local tail
 -------------------------------------------------------
 
--- runCount :: () -> Eff (State Int :* e) Int
+-- runCount :: Eff (State Int :* e) Int
 runCount :: (State Int :? e) =>  Eff e Int
 runCount
   = do i <- perform get ()

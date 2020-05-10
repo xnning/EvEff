@@ -14,17 +14,19 @@ module Control.Ev.Ctl(
           , yield        -- yield to a prompt       :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
 
           , unsafeIO     -- lift IO into Ctl        :: IO a -> Ctl a
+          , promptIORef
           ) where
 
 import Prelude hiding (read,flip)
 import Control.Monad( ap, liftM )
 import Data.Type.Equality( (:~:)( Refl ) )
 import Control.Monad.Primitive
+
 -------------------------------------------------------
 -- Assume some way to generate a fresh prompt marker
 -- associated with specific answer type.
 -------------------------------------------------------
-import Unsafe.Coerce     (unsafeCoerce)
+import Unsafe.Coerce    ( unsafeCoerce )
 import System.IO.Unsafe ( unsafePerformIO )
 import Data.IORef
 
@@ -129,7 +131,23 @@ newtype Local a = Local (IORef a)
 unsafeIO :: IO a -> Ctl a
 unsafeIO io = let x = unsafeInlinePrim io in seq x (Pure x)
 
+-- A special prompt that saves and restores state per resumption
+mpromptIORef :: IORef a -> Ctl b -> Ctl b
+mpromptIORef r action
+  = case action of
+      Pure x -> pure x
+      Control m op cont
+        -> do val <- unsafeIO (readIORef r)                 -- save current value on yielding
+              let cont' x = do unsafeIO (writeIORef r val)  -- restore saved value on resume
+                               mpromptIORef r (cont x)
+              Control m op cont'
 
+promptIORef :: IORef a -> (Marker b -> Ctl b) -> Ctl b
+promptIORef r action
+  = freshMarker $ \m -> mpromptIORef r (action m)
+
+
+{-
 {-# INLINE mlocalGet #-}
 mlocalGet :: Local a -> b -> Ctl a
 mlocalGet (Local r) x = unsafeIO (seq x $ readIORef r)
@@ -161,3 +179,4 @@ plocal local action
               let cont' x = do mlocalSet local val    -- restore saved value on resume
                                plocal local (cont x)
               Control m op cont'
+-}

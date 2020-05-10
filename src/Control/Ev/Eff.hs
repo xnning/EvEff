@@ -92,9 +92,9 @@ instance Applicative (Eff e) where
   pure  = return
   (<*>) = ap
 instance Monad (Eff e) where
-  return x    = Eff (\ctx -> pure x)
-  eff >>= f   = Eff (\ctx -> do x <- under ctx eff
-                                under ctx (f x))
+  return x          = Eff (\ctx -> pure x)
+  (Eff eff) >>= f   = Eff (\ctx -> do x <- eff ctx
+                                      under ctx (f x))
 
 
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
@@ -252,7 +252,9 @@ localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; w
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = do r <- lift $ unsafeIO (newIORef init)
-       handler (Local r) action
+       -- handler (Local r) action
+       Eff (\ctx -> promptIORef r $ \m ->  -- set a fresh prompt with marker `m`
+                    do under (CCons m (Local r) ctx) action) -- and call action with the extra evidence
 
 
 -- Expose a local state handler to just one handler's operations
