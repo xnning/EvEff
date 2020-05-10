@@ -88,8 +88,8 @@ countTail n
 
 stateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
 stateNonTail init
-  = handlerLocal init (State{ get = operation (\() k -> do{ x <- lperform lget (); k x }),
-                              put = operation (\x k  -> do{ lperform lput x; k () }) })
+  = handlerLocal init (State{ get = operation (\() k -> do{ x <- perform lget (); k x }),
+                              put = operation (\x k  -> do{ perform lput x; k () }) })
 
 countNonTail :: Int -> Int
 countNonTail n
@@ -112,10 +112,10 @@ countFun n
 
 runCountBuiltin :: (Local Int :? e) => Eff e Int
 runCountBuiltin
-  = do i <- lperform lget () --localGet
+  = do i <- perform lget () --localGet
        if (i==0) then return i
         else do -- localPut (i - 1)
-                lperform lput (i - 1)
+                perform lput (i - 1)
                 runCountBuiltin
 
 
@@ -123,7 +123,7 @@ countBuiltin :: Int -> Int
 countBuiltin n
   = runEff $ local n $ runCountBuiltin
 
-
+{-
 runCountLinear :: (Linear (State Int) :? e) =>  Eff e Int
 runCountLinear
   = do i <- lperform get ()
@@ -135,7 +135,7 @@ runCountLinear
 countLinear :: Int -> Int
 countLinear n
   = runEff $ lstate n $ runCountLinear
-
+-}
 -------------------------------------------------------
 -- TESTS
 -------------------------------------------------------
@@ -149,14 +149,14 @@ effFun    n = bench "eff functional state" $ whnf countFun n
 effLoc    n = bench "eff local"            $ whnf countTail n
 effLocNt  n = bench "eff local non tail"   $ whnf countNonTail n
 effBuiltin n = bench "eff local builtin"    $ whnf countBuiltin n
-effLinear  n = bench "eff local linear"     $ whnf countLinear n
+-- effLinear  n = bench "eff local linear"     $ whnf countLinear n
 
 comp n  = [ ppure n
           , monadic n
           , st n
           , ee n
           , effBuiltin n
-          , effLinear n
+--          , effLinear n
           , effLoc n
           , effLocNt n
           , effFun n

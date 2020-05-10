@@ -1,11 +1,11 @@
 {-# LANGUAGE TypeOperators, FlexibleContexts, Rank2Types, MagicHash #-}
 module Control.Ev.Util
   ( Reader(Reader,ask)
-  , reader, lreader
+  , reader
   , State(State,get,put)
-  , state, lstate
+  , state
   , Writer(Writer,tell)
-  , writer, lwriter
+  , writer
   , Exn(Exn,throwError)
   , exn, defaultExn, maybeExn
 ) where
@@ -23,11 +23,6 @@ reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
 reader x
   = handler (Reader{ ask = value x })
 
-{-# INLINE lreader #-}
-lreader :: a -> Eff (Linear (Reader a) :* e) ans -> Eff e ans
-lreader x
-  = handler (Linear (Reader{ ask = lvalue x }))
-
 ------------
 -- State
 ------------
@@ -40,12 +35,6 @@ state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handlerLocal init (State{ get = function (\_ -> localGet),
                               put = function (\x -> localPut x) })
-
-{-# INLINE lstate #-}
-lstate :: a -> Eff (Linear (State a) :* e) ans -> Eff e ans
-lstate init
-  = handlerLocal init (Linear (State{ get = lfunction (\_ -> localGet),
-                                      put = lfunction (\x -> localPut x) }))
 
 
 ------------
@@ -60,11 +49,6 @@ writer
   = handlerLocalRet [] (\x xs -> (x,mconcat (reverse xs))) $
     Writer{ tell = function (\x -> do{ localUpdate (\xs -> x:xs); return () }) }
 
-{-# INLINE lwriter #-}
-lwriter :: (Monoid a) => Eff (Linear (Writer a) :* e) ans -> Eff e (ans,a)
-lwriter
-  = handlerLocalRet [] (\x xs -> (x,mconcat (reverse xs))) $
-    Linear (Writer{ tell = lfunction (\x -> do{ localUpdate (\xs -> x:xs); return () }) })
 
 ------------
 -- Exn

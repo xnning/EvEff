@@ -220,7 +220,7 @@ handleEffNonTail e = E.writer $
 
 testEvalEffNonTail e = snd (runEff (handleEffNonTail e))
 
-
+{-
 ---------------------------------------------------------
 -- Linear
 ---------------------------------------------------------
@@ -262,6 +262,7 @@ handleEffL e = E.lwriter $
                   return $ x
 
 testEvalEffL e = snd (runEff (handleEffL e))
+-}
 
 ---------------------------------------------------------
 -- TEST
@@ -291,7 +292,7 @@ makeGroup n =
      return $ [ bgroup (show n)  [ bench "monad"     $ whnf last (testEvalMonad e)
                                  , bench "mixin"     $ whnf last (testEvalMixin e)
                                  , bench "extensible" $ whnf last (testEvalEE e)
-                                 , bench "algebraic linear" $ whnf last (testEvalEffL e)
+                                 -- , bench "algebraic linear" $ whnf last (testEvalEffL e)
                                  , bench "algebraic" $ whnf last (testEvalEff e)
                                  , bench "algebraic non tail" $ whnf last (testEvalEffNonTail e)
                                  ]

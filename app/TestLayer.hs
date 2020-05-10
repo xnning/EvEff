@@ -274,7 +274,7 @@ layrunEffderEffNonTail4 n = runEff $
     reader "0" $
     eff n
 
-
+{-
 -------------------------------------------------------
 -- Eff Linear
 -------------------------------------------------------
@@ -335,7 +335,7 @@ layerUnderEffL4 n = runEff $
   lreader True $
   lreader "0" $
   effL n
-
+-}
 -------------------------------------------------------
 -- TEST
 -------------------------------------------------------
@@ -359,7 +359,7 @@ comp n = [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "extensible effects under 2"    $ whnf layrunEffderEE2 n
          , bench "extensible effects under 3"    $ whnf layrunEffderEE3 n
          , bench "extensible effects under 4"    $ whnf layrunEffderEE4 n
-
+{-
          , bench "eff linear 0"          $ whnf layerEffL n
          , bench "eff linear over 1"     $ whnf layerOverEffL1 n
          , bench "eff linear over 2"     $ whnf layerOverEffL2 n
@@ -369,7 +369,7 @@ comp n = [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "eff linear under 2"    $ whnf layerUnderEffL2 n
          , bench "eff linear under 3"    $ whnf layerUnderEffL3 n
          , bench "eff linear under 4"    $ whnf layerUnderEffL4 n
-
+-}
          , bench "eff 0"          $ whnf layerEff n
          , bench "eff over 1"     $ whnf layerOverEff1 n
          , bench "eff over 2"     $ whnf layerOverEff2 n

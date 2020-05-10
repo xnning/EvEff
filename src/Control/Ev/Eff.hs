@@ -27,11 +27,6 @@ module Control.Ev.Eff(
             , operation       -- :: (a -> (b -> Eff e ans)) -> Op a b e ans
             , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 
-            , Linear(..)
-            , lfunction
-            , lvalue
-            , lperform
-
             -- handling
             , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
             , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
@@ -39,7 +34,7 @@ module Control.Ev.Eff(
             , mask            -- :: Eff e ans -> Eff (h :* e) ans
 
             -- local variables
-            , Local, LocalState -- Local a e ans == Linear (LocalState a) e ans
+            , Local           -- Local a e ans
             , local           -- :: a -> Eff (Local a :* e) ans -> Eff e ans
             , lget            -- :: (Local a :? e) => Eff e a
             , lput            -- :: (Local a :? e) => a -> Eff e ()
@@ -252,65 +247,38 @@ instance Eq (Context e) where
 
 
 --------------------------------------------------------------------------------
--- Linear effect operations never yield
---------------------------------------------------------------------------------
-newtype Linear h e ans  = Linear{ unlinear :: (h e ans) }
-
-{-# INLINE lperform #-}
-lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
-lperform selectOp x
-  = withSubContext $ \(SubContext (CCons m h g ctx)) ->
-    case useOp (selectOp (unlinear h)) m (applyT g ctx) x of
-      ctl@(Pure _) -> ctl
-      _            -> error "Control.Ev.Eff.lperform: linear operation yielded!"
-
--- linear tail-resumptive operation (almost all operations)
-{-# INLINE lfunction #-}
-lfunction :: (a -> Eff e b) -> Op a b e ans
-lfunction f = Op (\_ ctx x -> case (under ctx (f x)) of
-                                ctl@(Pure _) -> ctl
-                                _            -> error "Control.Ev.Eff.lfunction: operation declared as linear but it yielded!")
-
--- linear value
-{-# INLINE lvalue #-}
-lvalue :: a -> Op () a e ans
-lvalue x = lfunction (\() -> return x)
-
---------------------------------------------------------------------------------
 -- Efficient (and safe) Local state handler
 --------------------------------------------------------------------------------
 
-newtype LocalState a e ans = Local (IORef a)
-
-type Local a = Linear (LocalState a)
+newtype Local a e ans = Local (IORef a)
 
 {-# INLINE lget #-}
-lget :: LocalState a e ans -> Op () a e ans
+lget :: Local a e ans -> Op () a e ans
 lget (Local r) = Op (\m ctx x -> unsafeIO (readIORef r))
 
 {-# INLINE lput #-}
-lput :: LocalState a e ans -> Op a () e ans
+lput :: Local a e ans -> Op a () e ans
 lput (Local r) = Op (\m ctx x -> unsafeIO (writeIORef r x))
 
 {-# INLINE lupdate #-}
-lupdate :: LocalState a e ans -> Op (a -> a) () e ans
+lupdate :: Local a e ans -> Op (a -> a) () e ans
 lupdate (Local r) = Op (\m ctx f -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
 
 localGet :: Eff (Local a :* e) a
-localGet = lperform lget ()
+localGet = perform lget ()
 
 localPut :: a -> Eff (Local a :* e) ()
-localPut x = lperform lput x
+localPut x = perform lput x
 
 localUpdate :: (a -> a) -> Eff (Local a :* e) ()
-localUpdate f = lperform lupdate f
+localUpdate f = perform lupdate f
 
 
 {-# INLINE local #-}
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
-                 do under (CCons m (Linear (Local r)) CTId ctx) action) -- and call action with the extra evidence
+                 do under (CCons m (Local r) CTId ctx) action) -- and call action with the extra evidence
 
 -- Expose a local state handler to just one handler's operations
 {-# INLINE handlerLocalRet #-}
