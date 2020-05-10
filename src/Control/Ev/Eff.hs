@@ -1,6 +1,3 @@
------------------------------------------------------
--- Copyright 2020, Daan Leijen, Ningning Xie.
------------------------------------------------------
 {-# LANGUAGE  TypeOperators,            -- h :* e                     (looks nice but not required)
               ConstraintKinds,          -- type (h ?: e) = In h e     (looks nice but not required)
               FlexibleInstances,        -- instance Sub () e          (non type variable in head)
@@ -11,29 +8,60 @@
               MultiParamTypeClasses,
               Rank2Types
 #-}
+{-|
+Description : Efficient effect handlers based on Evidence translation
+Copyright   : (c) Microsoft Research, Daan Leijen, Ningning Xie
+License     : MIT
+Maintainer  : daan@microsoft.com, xnning@hku.hk
+Stability   : experimental
 
+Efficient effect handlers based on Evidence translation. The implementation
+is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020.
+
+Example:
+
+@
+-- A `Reader` effect definition with one operation `tell` of type `()` to `a`.
+data Reader a e ans = Reader{ tell :: Op () a e ans }
+
+greet :: (Reader String :? e) => Eff e String
+greet = do s <- perform tell ()
+           return ("hello " ++ s)
+
+test :: String
+test = runEff $
+       handler (Reader{ tell = value "world" }) $  -- :: Reader String () Int
+       do s <- greet                               -- executes in context :: Eff (Reader String :* ()) Int
+          return (length s)
+@
+
+-}
 module Control.Ev.Eff(
-            -- Effect monad
+            -- * Effect monad
               Eff
             , runEff          -- :: Eff () a -> a
+
+            -- * Effect context
             , (:*)            -- h :* e
             , In, (:?)        -- h :? e
 
-            -- operations
+            -- * Operations
+            , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+
+            -- ** Defining operations
             , Op
             , value           -- :: a -> Op () a e ans
             , function        -- :: (a -> Eff e b) -> Op a b e ans
             , except          -- :: (a -> Eff e ans) -> Op a b e ans
             , operation       -- :: (a -> (b -> Eff e ans)) -> Op a b e ans
-            , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 
-            -- handling
+            -- * Handlers
             , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
             , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
             , handlerHide     -- :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
             , mask            -- :: Eff e ans -> Eff (h :* e) ans
 
-            -- local variables
+            -- * Local state
             , Local           -- Local a e ans
             , local           -- :: a -> Eff (Local a :* e) ans -> Eff e ans
             , lget            -- :: (Local a :? e) => Eff e a
@@ -62,8 +90,18 @@ infixr 5 :*
 -------------------------------------------------------
 -- The handler context
 -------------------------------------------------------
+
+-- | An effect context is a type-level list of effects.
+-- An effect context always has the form @(h1 :* h2 :* ... :* hn :* ())@ where
+-- operations in @h1@ to @h_n@ can be used.
+--
+-- (Note: The effects in a context are partially applied types -- an effect @h e ans@
+-- denotes a full effect handler (as a value) defined in an effect context @e@ and
+-- with answer type @ans@. In the effect context though these types are abstract
+-- and we use the partial type @h@)
 data (h :: * -> * -> *) :* e
 
+-- | A runtime context @Context e@ corresponds always to the effect context @e@.
 data Context e where
   CCons :: !(Marker ans) -> !(h e' ans) -> !(ContextT e e') -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
@@ -92,6 +130,8 @@ ctail (CCons _ _ _ ctx)   = ctx
 -------------------------------------------------------
 -- The Effect monad
 -------------------------------------------------------
+
+-- | The effect monad in an effect context @e@ with result @a@
 newtype Eff e a = Eff (Context e -> Ctl a)
 
 {-# INLINE lift #-}
@@ -113,12 +153,13 @@ instance Monad (Eff e) where
   (Eff eff) >>= f   = Eff (\ctx -> do x <- eff ctx
                                       under ctx (f x))
 
-
+-- | Use @handler hnd action@ to handle effect @h@ with handler @hnd@ in @action@ (which has @h@ in its effect context).
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
   = Eff (\ctx -> prompt $ \m ->                      -- set a fresh prompt with marker `m`
                  do under (CCons m h CTId ctx) action) -- and call action with the extra evidence
 
+-- | Run an effect monad in an empty context (as all effects need to be handled)
 runEff :: Eff () a -> a
 runEff (Eff eff)  = runCtl (eff CNil)
 
@@ -141,10 +182,21 @@ mask (Eff f) = Eff (\ctx -> f (ctail ctx))
 ---------------------------------------------------------
 -- Select a sub context
 ---------------------------------------------------------
+
+{-| An effect membership constraint: @h :? e@ ensures that the effect handler
+@h@ will be in the effect context @e@. For example:
+
+@
+inc :: (State Int :? e) => Eff e ()
+inc = do{ i <- perform get (); perform put (i+1) }
+@
+
+-}
 type h :? e = In h e   -- is `h` in the effect context `e` ?
 
 data SubContext h  = forall e. SubContext !(Context (h :* e))  -- make `e` existential
 
+-- | The @In@ constraint is an alias for `:?`
 class In h e where
   subContext :: Context e -> SubContext h
 
@@ -205,10 +257,25 @@ class SubH h where
 -- Operations of type `a -> b` in a handler context `ans`
 data Op a b e ans = Op { applyOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 
--- Given evidence and an operation selector, perform the operation
--- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
+{-| Given an operation selector, perform the operation.
+Usually the operation selector is a field in the data type for the effect handler.
+For example:
+
+@
+data Reader a e ans = Reader{ tell :: Op () a e ans }
+
+greet :: (Reader String :? e) => Eff e String
+greet = do s <- perform tell ()
+           return ("hello " ++ s)
+
+test = runEff $
+       handler (Reader{ tell = value "world" }) $
+       greet
+@
+
+-}
 {-# INLINE perform #-}
-perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+perform :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 perform selectOp x
   = withSubContext (\(SubContext (CCons m h g ctx)) -> applyOp (selectOp h) m (applyT g ctx) x)
 

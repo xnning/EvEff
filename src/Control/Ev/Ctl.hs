@@ -1,20 +1,28 @@
--------------------------------------------------------------------
--- Copyright 2020, Microsoft Research, Daan Leijen, Ningning Xie.
--- This is free software, see the LICENSE file at the root of the
--- distribution for details.
--------------------------------------------------------------------
 {-# LANGUAGE GADTs,                       -- match on Refl for type equality
              ExistentialQuantification    -- forall b ans. Control ...
 #-}
+{-|
+Description : Type-safe multi-prompt control
+Copyright   : (c) Microsoft Research, Daan Leijen, Ningning Xie
+License     : MIT
+Maintainer  : daan@microsoft.com, xnning@hku.hk
+Stability   : experimental
+
+Primitive module that implements type safe multi-prompt control.
+Used by the "Control.Ev.Eff" module to implement effect handlers.
+-}
 module Control.Ev.Ctl(
+          -- * Markers
             Marker       -- prompt marker
           , markerEq     -- :: Marker a -> Marker b -> Bool
 
-          , Ctl(..)       -- control monad
+          -- * Control monad
+          , Ctl(Pure)    -- control monad
           , runCtl       -- run the control monad   :: Ctl a -> a
           , prompt       -- install prompt          :: Marker a -> Ctl a -> Ctl a
           , yield        -- yield to a prompt       :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
 
+          -- * Unsafe primitives for "Control.Ev.Eff"
           , unsafeIO     -- lift IO into Ctl        :: IO a -> Ctl a
           , promptIORef
           ) where
@@ -32,7 +40,7 @@ import Unsafe.Coerce    ( unsafeCoerce )
 import System.IO.Unsafe ( unsafePerformIO )
 import Data.IORef
 
--- an abstract marker
+-- | An abstract  control marker
 data Marker a = Marker !Integer
 
 instance Show (Marker a) where
@@ -41,6 +49,7 @@ instance Show (Marker a) where
 instance Eq (Marker a) where
   m1 == m2  = markerEq m1 m2
 
+-- | Compare two markers of different types for equality
 markerEq :: Marker a -> Marker b -> Bool
 markerEq (Marker i) (Marker j)  = (i == j)
 
@@ -63,18 +72,18 @@ freshMarker f
     in seq m (f (Marker m))
 
 
--------------------------------------------------------
--- The Multi Prompt control monad
--- ans: the answer type, i.e. the type of the handler/prompt context
--- b  : the result type of the operation
--------------------------------------------------------
-data Ctl a = Pure { result :: !a }
+{-|  The Multi Prompt control monad,
+where `ans` is the answer type, i.e. the type of the handler/prompt context,
+and `b` the result type of the operation
+-}
+data Ctl a = Pure { result :: !a }  -- ^ Pure results (only exported for use in the "Control.Ev.Eff" module)
            | forall ans b.
-             Control{ marker :: !(Marker ans),                 -- prompt marker to yield to (in type context `::ans`)
-                      op     :: !((b -> Ctl ans) -> Ctl ans),  -- the final action, just needs the resumption (:: b -> Ctl ans) to be evaluated.
-                      cont   :: !(b -> Ctl a) }                -- the (partially) build up resumption; (b -> Ctl a) :~: (b -> Ctl ans)` by the time we reach the prompt
+             Control{ marker :: !(Marker ans),                 -- ^ prompt marker to yield to (in type context `::ans`)
+                      op     :: !((b -> Ctl ans) -> Ctl ans),  -- ^ the final action, just needs the resumption (:: b -> Ctl ans) to be evaluated.
+                      cont   :: !(b -> Ctl a)                  -- ^ the (partially) build up resumption; `(b -> Ctl a) :~: (b -> Ctl ans)` by the time we reach the prompt
+                    }
 
--- start yielding (with an initially empty continuation)
+-- | @yield m op@ yields to a specific marker and executes @op@ in that context
 {-# INLINE yield #-}
 yield :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
 yield m op  = Control m op Pure
@@ -111,14 +120,15 @@ mprompt m (Control n op cont)
       Just Refl -> op cont'             -- found our prompt, invoke `op`.
                    -- Note: `Refl` proves `a ~ ans` (the existential `ans` in Control)
 
--- connect creation of a marker with instantiating the prompt
+-- | Install a /prompt/ with a specific prompt `Marker` to which one can `yield`.
+-- This connects creation of a marker with instantiating the prompt.
 {-# INLINE prompt #-}
 prompt :: (Marker a -> Ctl a) -> Ctl a
 prompt action
   = freshMarker $ \m ->  -- create a fresh marker
     mprompt m (action m)  -- and install a prompt associated with this marker
 
--- Run a control monad
+-- | Run a control monad
 runCtl :: Ctl a -> a
 runCtl (Pure x) = x
 runCtl (Control _ _ _) = error "Unhandled operation"  -- only if marker escapes the scope of the prompt
@@ -129,6 +139,7 @@ runCtl (Control _ _ _) = error "Unhandled operation"  -- only if marker escapes 
 -------------------------------------------------------
 newtype Local a = Local (IORef a)
 
+-- | Unsafe `IO` in the `Ctl` monad.
 {-# INLINE unsafeIO #-}
 unsafeIO :: IO a -> Ctl a
 unsafeIO io = let x = unsafeInlinePrim io in seq x (Pure x)
@@ -144,6 +155,8 @@ mpromptIORef r action
                                mpromptIORef r (cont x)
               Control m op cont'
 
+-- | Create an `IORef` connected to a prompt. The value of
+-- the `IORef` is saved and restored through resumptions.
 promptIORef :: a -> (Marker b -> IORef a -> Ctl b) -> Ctl b
 promptIORef init action
   = freshMarker $ \m ->
