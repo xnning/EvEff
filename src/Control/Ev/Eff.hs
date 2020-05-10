@@ -10,10 +10,10 @@
 #-}
 {-|
 Description : Efficient effect handlers based on Evidence translation
-Copyright   : (c) Microsoft Research, Daan Leijen, Ningning Xie
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
 License     : MIT
-Maintainer  : daan@microsoft.com, xnning@hku.hk
-Stability   : experimental
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
 
 Efficient effect handlers based on Evidence translation. The implementation
 is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020.
@@ -21,20 +21,30 @@ is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020.
 Example:
 
 @
--- A `Reader` effect definition with one operation `tell` of type `()` to `a`.
-data Reader a e ans = Reader{ tell :: Op () a e ans }
+-- A @Reader@ effect definition with one operation @ask@ of type @()@ to @a@.
+data Reader a e ans = Reader{ ask :: Op () a e ans }
 
 greet :: (Reader String :? e) => Eff e String
-greet = do s <- perform tell ()
+greet = do s <- perform ask ()
            return ("hello " ++ s)
 
 test :: String
 test = runEff $
-       handler (Reader{ tell = value "world" }) $  -- :: Reader String () Int
-       do s <- greet                               -- executes in context :: Eff (Reader String :* ()) Int
+       handler (Reader{ ask = value "world" }) $  -- @:: Reader String () Int@
+       do s <- greet                              -- executes in context @:: Eff (Reader String :* ()) Int@
           return (length s)
 @
 
+Note: to use this library, you generally need:
+
+@
+\{\-\# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  \#\-\}
+@
+
+in front of your module declaration.
+
+Enjoy,
+  Daan Leijen and Ningning Xie,  May 2020.
 -}
 module Control.Ev.Eff(
             -- * Effect monad
@@ -42,11 +52,16 @@ module Control.Ev.Eff(
             , runEff          -- :: Eff () a -> a
 
             -- * Effect context
+            , (:?)            -- h :? e
             , (:*)            -- h :* e
-            , In, (:?)        -- h :? e
+            -- , In              -- alias for :?
 
-            -- * Operations
+            -- * Perform and Handlers
             , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+            , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
+            , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
+            , handlerHide     -- :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
+            , mask            -- :: Eff e ans -> Eff (h :* e) ans
 
             -- ** Defining operations
             , Op
@@ -55,15 +70,13 @@ module Control.Ev.Eff(
             , except          -- :: (a -> Eff e ans) -> Op a b e ans
             , operation       -- :: (a -> (b -> Eff e ans)) -> Op a b e ans
 
-            -- * Handlers
-            , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
-            , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
-            , handlerHide     -- :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
-            , mask            -- :: Eff e ans -> Eff (h :* e) ans
-
             -- * Local state
             , Local           -- Local a e ans
+
             , local           -- :: a -> Eff (Local a :* e) ans -> Eff e ans
+            , handlerLocal    -- :: a -> h (Local a :* e) ans -> Eff (h :* e) ans -> Eff e ans
+            , handlerLocalRet -- :: a -> (ans -> a -> b) -> h (Local a :* e) b -> Eff (h :* e) ans -> Eff e b
+
             , lget            -- :: (Local a :? e) => Eff e a
             , lput            -- :: (Local a :? e) => a -> Eff e ()
             , lupdate         -- :: (Local a :? e) => (a -> a) -> Eff e ()
@@ -71,9 +84,6 @@ module Control.Ev.Eff(
             , localGet        -- :: Eff (Local a :* e) a
             , localPut        -- :: a -> Eff (Local a :* e) ()
             , localUpdate     -- :: (a -> a) -> Eff (Local a :* e) a
-
-            , handlerLocal    -- :: a -> h (Local a :* e) ans -> Eff (h :* e) ans -> Eff e ans
-            , handlerLocalRet -- :: a -> (ans -> a -> b) -> h (Local a :* e) b -> Eff (h :* e) ans -> Eff e b
 
             ) where
 
@@ -97,8 +107,8 @@ infixr 5 :*
 --
 -- (Note: The effects in a context are partially applied types -- an effect @h e ans@
 -- denotes a full effect handler (as a value) defined in an effect context @e@ and
--- with answer type @ans@. In the effect context though these types are abstract
--- and we use the partial type @h@)
+-- with answer type @ans@. In the effect context type though, these types are abstract
+-- and we use the partial type @h@ do denote the effect)
 data (h :: * -> * -> *) :* e
 
 -- | A runtime context @Context e@ corresponds always to the effect context @e@.
@@ -153,7 +163,16 @@ instance Monad (Eff e) where
   (Eff eff) >>= f   = Eff (\ctx -> do x <- eff ctx
                                       under ctx (f x))
 
--- | Use @handler hnd action@ to handle effect @h@ with handler @hnd@ in @action@ (which has @h@ in its effect context).
+-- | Use @handler hnd action@ to handle effect @h@ with
+-- handler @hnd@ in @action@ (which has @h@ in its effect context now as @h :* e@).
+-- For example:
+--
+-- @
+-- data Reader a e ans = Reader { ask :: Op () a e ans }
+--
+-- reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
+-- reader x = handler (Reader{ ask = value x })
+-- @
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
   = Eff (\ctx -> prompt $ \m ->                      -- set a fresh prompt with marker `m`
@@ -163,18 +182,37 @@ handler h action
 runEff :: Eff () a -> a
 runEff (Eff eff)  = runCtl (eff CNil)
 
+
+-- | Handle an effect @h@ over @action@ and tranform the final result with
+-- the /return/ function @ret@. For example:
+--
+-- @
+-- data Except a e ans = Except { throwError :: forall b. Op a b e ans }
+--
+-- exceptMaybe :: Eff (Except a :* e) ans -> Eff e (Maybe ans)
+-- exceptMaybe = handlerRet Just (Except{ throwError = except (\_ -> return Nothing) })
+-- @
 handlerRet :: (ans -> a) -> h e a -> Eff (h :* e) ans -> Eff e a
-handlerRet f h action
-  = handler h (do x <- action; return (f x))
+handlerRet ret h action
+  = handler h (do x <- action; return (ret x))
 
 
--- A handler `h` that hides one handler `h'` in its action, but `h'` is visible in the operation definitions of `h`
+-- | Define a handler @h@ that hides the top handler @h'@ from its @action@,
+-- while keeping @h'@ is still visible in the operation definitions of @h@.
+-- This is used to implement locally isolated state for `handlerLocal` using
+-- the regular `local` state. In particular, `handlerLocal` is implemented as:
+--
+-- @
+-- handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
+-- handlerLocal init h action = local init (handlerHide h action)
+-- @
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
   = Eff (\(CCons m' h' g' ctx') -> prompt (\m -> under (CCons m h (CTCons m' h' g') ctx') action))
 
 
--- ignore the top effect handler
+-- | Mask the top effect handler in the give action (i.e. if a operation is performed
+-- on an @h@ effect inside @e@ the top handler is ignored).
 mask :: Eff e ans -> Eff (h :* e) ans
 mask (Eff f) = Eff (\ctx -> f (ctail ctx))
 
@@ -184,11 +222,12 @@ mask (Eff f) = Eff (\ctx -> f (ctail ctx))
 ---------------------------------------------------------
 
 {-| An effect membership constraint: @h :? e@ ensures that the effect handler
-@h@ will be in the effect context @e@. For example:
+@h@ is in the effect context @e@. For example:
 
 @
 inc :: (State Int :? e) => Eff e ()
-inc = do{ i <- perform get (); perform put (i+1) }
+inc = do i <- perform get ()
+         perform put (i+1) }
 @
 
 -}
@@ -198,7 +237,7 @@ data SubContext h  = forall e. SubContext !(Context (h :* e))  -- make `e` exist
 
 -- | The @In@ constraint is an alias for `:?`
 class In h e where
-  subContext :: Context e -> SubContext h
+  subContext :: Context e -> SubContext h  -- ^ Internal method to select a sub context
 
 instance (InEq (HEqual h h') h h' w) => In h (h' :* w)  where
   subContext = subContextEq
@@ -208,6 +247,7 @@ type family HEqual (h :: * -> * -> *) (h' :: * -> * -> *) :: Bool where
   HEqual h h  = 'True
   HEqual h h' = 'False
 
+-- | Internal class used by `:?`.
 class (iseq ~ HEqual h h') => InEq iseq h h' e  where
   subContextEq :: Context (h' :* e) -> SubContext h
 
@@ -254,22 +294,28 @@ class SubH h where
 ------------------------------------
 -- Operations
 -------------------------------------
--- Operations of type `a -> b` in a handler context `ans`
+
+-- | The abstract type of operations of type @a@ to @b@, for a handler
+-- defined in an effect context @e@ and answer type @ans@.
 data Op a b e ans = Op { applyOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 
-{-| Given an operation selector, perform the operation.
+{-| Given an operation selector, perform the operation. The type of the selector
+function is a bit intimidating, but it just selects the right operation @Op@ from the
+handler @h@ regardless of the effect context @e'@ and answer type @ans@ where the
+handler is defined.
+
 Usually the operation selector is a field in the data type for the effect handler.
 For example:
 
 @
-data Reader a e ans = Reader{ tell :: Op () a e ans }
+data Reader a e ans = Reader{ ask :: Op () a e ans }
 
 greet :: (Reader String :? e) => Eff e String
-greet = do s <- perform tell ()
+greet = do s <- perform ask ()
            return ("hello " ++ s)
 
 test = runEff $
-       handler (Reader{ tell = value "world" }) $
+       handler (Reader{ ask = value "world" }) $
        greet
 @
 
@@ -279,25 +325,45 @@ perform :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e 
 perform selectOp x
   = withSubContext (\(SubContext (CCons m h g ctx)) -> applyOp (selectOp h) m (applyT g ctx) x)
 
--- tail-resumptive value operation (reader)
+-- | Create an operation that always resumes with a constant value (of type @a@).
+-- (see also the `perform` example).
 {-# INLINE value #-}
 value :: a -> Op () a e ans
 value x = function (\() -> return x)
 
--- tail-resumptive operation (almost all operations)
+-- | Create an operation that takes an argument of type @a@ and always resumes with a result of type @b@.
+-- These are called /tail-resumptive/ operations and are implemented more efficient than
+-- general operations as they can execute /in-place/ (instead of yielding to the handler).
+-- Most operations are tail-resumptive. (See also the `handlerLocal` example).
 {-# INLINE function #-}
 function :: (a -> Eff e b) -> Op a b e ans
 function f = Op (\_ ctx x -> under ctx (f x))
 
 
--- general operation with a resumption (exceptions, async/await, etc)
+-- | Create an fully general operation from type @a@ to @b@.
+-- the function @f@ takes the argument, and a /resumption/ function of type @b -> Eff e ans@
+-- that can be called to resume from the original call site. For example:
+--
+-- @
+-- data Amb e ans = Amb { flip :: forall b. Op () Bool e ans }
+--
+-- xor :: (Amb :? e) => Eff e Bool
+-- xor = do x <- perform flip ()
+--          y <- perform flip ()
+--          return ((x && not y) || (not x && y))
+--
+-- solutions :: Eff (Amb :* e) a -> Eff e [a]
+-- solutions = handlerRet (\\x -> [x]) $
+--             Amb{ flip = operation (\\() k -> do{ xs <- k True; ys <- k False; return (xs ++ ys)) }) }
+-- @
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
 operation f = Op (\m ctx x -> yield m $ \ctlk ->
                               let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
                               in under ctx (f x k))
 
 
--- operation that never resumes
+-- | Create an operation that never resumes (an exception).
+-- (See `handlerRet` for an example).
 except :: (a -> Eff e ans) -> Op a b e ans
 except f = operation (\x _ -> f x)
 
@@ -313,38 +379,49 @@ instance Eq (Context e) where
 --------------------------------------------------------------------------------
 -- Efficient (and safe) Local state handler
 --------------------------------------------------------------------------------
-
+-- | The type of the built-in state effect.
+-- (This state is generally more efficient than rolling your own and usually
+-- used in combination with `handlerLocal` to provide local isolated state)
 newtype Local a e ans = Local (IORef a)
 
+-- | Get the value of the local state.
 {-# INLINE lget #-}
 lget :: Local a e ans -> Op () a e ans
 lget (Local r) = Op (\m ctx x -> unsafeIO (readIORef r))
 
+-- | Set the value of the local state.
 {-# INLINE lput #-}
 lput :: Local a e ans -> Op a () e ans
 lput (Local r) = Op (\m ctx x -> unsafeIO (writeIORef r x))
 
+-- | Update the value of the local state.
 {-# INLINE lupdate #-}
 lupdate :: Local a e ans -> Op (a -> a) () e ans
 lupdate (Local r) = Op (\m ctx f -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
 
+-- | Get the value of the local state if it is the top handler.
 localGet :: Eff (Local a :* e) a
 localGet = perform lget ()
 
+-- | Set the value of the local state if it is the top handler.
 localPut :: a -> Eff (Local a :* e) ()
 localPut x = perform lput x
 
+-- | Update the value of the local state if it is the top handler.
 localUpdate :: (a -> a) -> Eff (Local a :* e) ()
 localUpdate f = perform lupdate f
 
-
+-- | Create a local state handler.
 {-# INLINE local #-}
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
                  do under (CCons m (Local r) CTId ctx) action) -- and call action with the extra evidence
 
--- Expose a local state handler to just one handler's operations
+-- | Create a new handler for @h@ which can access the /locally isolated state/ @Local a@.
+-- This is fully local to the handler @h@ only and not visible in the @action@ as
+-- apparent from its effect context (which does /not/ contain @Local a@). The
+-- @ret@ argument can be used to transform the final result type.
 {-# INLINE handlerLocalRet #-}
 handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
@@ -352,6 +429,21 @@ handlerLocalRet init ret h action
                     y <- localGet
                     return (ret x y)
 
+-- | Create a new handler for @h@ which can access the /locally isolated state/ @Local a@.
+-- This is fully local to the handler @h@ only and not visible in the @action@ as
+-- apparent from its effect context (which does /not/ contain @Local a@).
+--
+-- @
+-- data State a e ans = State { get :: Op () a e ans, put :: Op a () e ans  }
+--
+-- state :: a -> Eff (State a :* e) ans -> Eff e ans
+-- state init = handlerLocal init (State{ get = function (\\_ -> perform lget ()),
+--                                        put = function (\\x -> perform lput x) })
+--
+-- test = runEff $
+--        state (41::Int) $
+--        inc                -- see `:?`
+-- @
 {-# INLINE handlerLocal #-}
 handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
 handlerLocal init h action

@@ -3,10 +3,10 @@
 #-}
 {-|
 Description : Type-safe multi-prompt control
-Copyright   : (c) Microsoft Research, Daan Leijen, Ningning Xie
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
 License     : MIT
-Maintainer  : daan@microsoft.com, xnning@hku.hk
-Stability   : experimental
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
 
 Primitive module that implements type safe multi-prompt control.
 Used by the "Control.Ev.Eff" module to implement effect handlers.
@@ -83,7 +83,9 @@ data Ctl a = Pure { result :: !a }  -- ^ Pure results (only exported for use in 
                       cont   :: !(b -> Ctl a)                  -- ^ the (partially) build up resumption; `(b -> Ctl a) :~: (b -> Ctl ans)` by the time we reach the prompt
                     }
 
--- | @yield m op@ yields to a specific marker and executes @op@ in that context
+-- | @yield m op@ yields to a specific marker and calls @op@ in that context
+-- with a /resumption/ @k :: b -> Ctl ans@ that resumes at the original call-site
+-- with a result of type @b@.
 {-# INLINE yield #-}
 yield :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
 yield m op  = Control m op Pure

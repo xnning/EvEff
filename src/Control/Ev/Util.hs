@@ -1,8 +1,10 @@
--------------------------------------------------------------------
--- Copyright 2020, Microsoft Research, Daan Leijen, Ningning Xie.
--- This is free software, see the LICENSE file at the root of the
--- distribution for details.
--------------------------------------------------------------------
+{-|
+Description : Common Effect implementations.
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
+License     : MIT
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
+-}
 {-# LANGUAGE TypeOperators, FlexibleContexts, Rank2Types, MagicHash #-}
 module Control.Ev.Util
   ( Reader(Reader,ask)
