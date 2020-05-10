@@ -108,6 +108,19 @@ countLoc n
 
 
 
+-- runCount :: Eff (State Int :* e) Int
+runCountl :: (Linear (State Int) :? e) =>  Eff e Int
+runCountl
+  = do i <- lperform get ()
+       if (i==0) then return i
+        else do lperform put $! (i - 1)
+                runCountl
+
+
+countLinear :: Int -> Int
+countLinear n
+  = runEff $ lstate n $ runCountl
+
 -------------------------------------------------------
 -- TESTS
 -------------------------------------------------------
@@ -120,11 +133,13 @@ effFun    n = bench "eff functional state" $ whnf countFun n
 effLoc    n = bench "eff local"            $ whnf countTail n
 effLocNt  n = bench "eff local non tail"   $ whnf countNonTail n
 effLocal  n = bench "eff local builtin"    $ whnf countLoc n
+effLin    n = bench "eff local linear"     $ whnf countLinear n
 
 comp n  = [ ppure n
           , monadic n
           , ee n
           , effLocal n
+          , effLin n
           , effLoc n
           , effLocNt n
           , effFun n

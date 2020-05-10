@@ -8,7 +8,7 @@ module Control.Ev.Ctl(
             Marker       -- prompt marker
           , markerEq     -- :: Marker a -> Marker b -> Bool
 
-          , Ctl          -- control monad
+          , Ctl(..)       -- control monad
           , runCtl       -- run the control monad   :: Ctl a -> a
           , prompt       -- install prompt          :: Marker a -> Ctl a -> Ctl a
           , yield        -- yield to a prompt       :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b

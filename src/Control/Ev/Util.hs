@@ -3,7 +3,7 @@ module Control.Ev.Util
   ( Reader(Reader,ask)
   , reader
   , State(State,get,put)
-  , state
+  , state, lstate
   , Writer(Writer,tell)
   , writer
   , Exn(Exn,throwError)
@@ -31,10 +31,17 @@ reader x
 data State a e ans = State { get :: !(Op () a e ans)
                            , put :: !(Op a () e ans)  }
 
+{-# INLINE state #-}
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handlerLocal init (State{ get = function (\_ -> localGet),
                               put = function (\x -> localSet x) })
+
+{-# INLINE lstate #-}
+lstate :: a -> Eff (Linear (State a) :* e) ans -> Eff e ans
+lstate init
+  = handlerLocal init (Linear (State{ get = lfunction (\_ -> localGet),
+                                      put = lfunction (\x -> localSet x) }))
 
 
 ------------

@@ -27,6 +27,11 @@ module Control.Ev.Eff(
             , operation       -- :: (a -> (b -> Eff e ans)) -> Op a b e ans
             , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 
+            , Linear(..)
+            , lfunction
+            , lperform
+
+
             -- handling
             , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
             , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
@@ -191,7 +196,7 @@ class SubH h where
 -- Operations
 -------------------------------------
 -- Operations of type `a -> b` in a handler context `ans`
-newtype Op a b e ans = Op { useOp :: Marker ans -> Context e -> a -> Ctl b}
+data Op a b e ans = Op { useOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 
 -- Given evidence and an operation selector, perform the operation
 -- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
@@ -203,20 +208,43 @@ perform selectOp x
       CCons m h ctx              -> useOp (selectOp h) m ctx x
       HCons m (Hide m' h') h ctx -> useOp (selectOp h) m (CCons m' h' ctx) x
 
+newtype Linear h e ans  = Linear{ unlinear :: (h e ans) }
+
+
+{-# INLINE lperform #-}
+lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+lperform selectOp x
+  = withSubContext $ \(SubContext sctx) ->
+    Pure $ case (case sctx of
+                   CCons m h ctx              -> useOp (selectOp (unlinear h)) m ctx x
+                   HCons m (Hide m' h') h ctx -> useOp (selectOp (unlinear h)) m (CCons m' h' ctx) x) of
+             Pure x -> x
+
 
 -- tail-resumptive value operation (reader)
+{-# INLINE value #-}
 value :: a -> Op () a e ans
 value x = function (\() -> return x)
 
 -- tail-resumptive operation (almost all operations)
+{-# INLINE function #-}
 function :: (a -> Eff e b) -> Op a b e ans
 function f = Op (\_ ctx x -> under ctx (f x))
+
+-- tail-resumptive operation (almost all operations)
+{-# INLINE lfunction #-}
+lfunction :: (a -> Eff e b) -> Op a b e ans
+lfunction f = Op (\_ ctx x -> case (under ctx (f x)) of
+                                Pure x -> Pure x
+                                _      -> error "Control.Ev.Eff.function_linear: operation declared as linear but it yielded!")
+
 
 -- general operation with a resumption (exceptions, async/await, etc)
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
 operation f = Op (\m ctx x -> yield m $ \ctlk ->
                               let k y = Eff (\ctx' -> guard ctx ctx' ctlk y)
                               in under ctx (f x k))
+
 
 -- operation that never resumes
 except :: (a -> Eff e ans) -> Op a b e ans
@@ -249,6 +277,7 @@ localSet x = Eff (\(CCons _ (Local r) _) -> unsafeIO (writeIORef r x))
 localUpdate :: (a -> a) -> Eff (Local a :* e) ()
 localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
 
+{-# INLINE local #-}
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
@@ -256,12 +285,14 @@ local init action
 
 
 -- Expose a local state handler to just one handler's operations
+{-# INLINE handlerLocalRet #-}
 handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
   = local init $ do x <- handlerHide h action
                     y <- localGet
                     return (ret x y)
 
+{-# INLINE handlerLocal #-}
 handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
 handlerLocal init h action
   = local init (handlerHide h action)
