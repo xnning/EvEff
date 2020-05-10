@@ -69,17 +69,12 @@ infixr 5 :*
 -------------------------------------------------------
 data (h :: * -> * -> *) :* e
 
-data Hide h e = forall ans. Hide !(Marker ans) !(h e ans)
-
 data Context e where
-  CCons :: !(Marker ans) -> !(h e ans) -> !(Context e) -> Context (h :* e)
-  HCons :: !(Marker ans) -> !(Hide h' e) -> !(h (h' :* e) ans) -> !(Context e) -> Context (h :* e)
+  CCons :: !(Marker ans) -> !(h e' ans) -> !(Context e -> Context e') -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
 
 ctail :: Context (h :* e) -> Context e
-ctail (CCons _ _ ctx)   = ctx
-ctail (HCons _ _ _ ctx) = ctx
-
+ctail (CCons _ _ _ ctx)   = ctx
 
 -------------------------------------------------------
 -- The Effect monad
@@ -108,8 +103,8 @@ instance Monad (Eff e) where
 
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
-  = Eff (\ctx -> prompt $ \m ->                  -- set a fresh prompt with marker `m`
-                 do under (CCons m h ctx) action) -- and call action with the extra evidence
+  = Eff (\ctx -> prompt $ \m ->                      -- set a fresh prompt with marker `m`
+                 do under (CCons m h id ctx) action) -- and call action with the extra evidence
 
 runEff :: Eff () a -> a
 runEff (Eff eff)  = runCtl (eff CNil)
@@ -123,9 +118,9 @@ handlerRet f h action
 -- A handler `h` that hides one handler `h'` in its action, but `h'` is visible in the operation definitions of `h`
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
-  = Eff (\ctx -> case ctx of
-                   CCons m' h' ctx' -> prompt $ \m -> under (HCons m (Hide m' h') h ctx') action
-                   _ -> error "Control.Ev.Eff.handlerHide: cannot hide already hidden handlers")
+  = Eff (\(CCons m' h' g' ctx') -> prompt $ \m -> let g ctx = CCons m' h' g' ctx
+                                                  in under (CCons m h g ctx') action)
+
 
 
 -- ignore the top effect handler
@@ -205,10 +200,7 @@ data Op a b e ans = Op { useOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 {-# INLINE perform #-}
 perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 perform selectOp x
-  = withSubContext $ \(SubContext sctx) ->
-    case sctx of
-      CCons m h ctx              -> useOp (selectOp h) m ctx x
-      HCons m (Hide m' h') h ctx -> useOp (selectOp h) m (CCons m' h' ctx) x
+  = withSubContext (\(SubContext (CCons m h g ctx)) -> useOp (selectOp h) m (g ctx) x)
 
 -- tail-resumptive value operation (reader)
 {-# INLINE value #-}
@@ -237,8 +229,7 @@ guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a
 guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "Control.Ev.Eff.guard: unscoped resumption under a different handler context"
 
 instance Eq (Context e) where
-  (CCons m1 h1 ctx1)   == (CCons m2 h2 ctx2)    = (markerEq m1 m2) && (ctx1 == ctx2)
-  (HCons m1 _ h1 ctx1) == (HCons m2 _ h2 ctx2)  = (markerEq m1 m2) && (ctx1 == ctx2)
+  (CCons m1 _ _ ctx1)  == (CCons m2 _ _ ctx2)    = (markerEq m1 m2) && (ctx1 == ctx2)
   CNil                 == CNil                  = True
 
 
@@ -250,20 +241,17 @@ newtype Linear h e ans  = Linear{ unlinear :: (h e ans) }
 {-# INLINE lperform #-}
 lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 lperform selectOp x
-  = withSubContext $ \(SubContext sctx) ->
-    let ctl = case sctx of
-                CCons m h ctx              -> useOp (selectOp (unlinear h)) m ctx x
-                HCons m (Hide m' h') h ctx -> useOp (selectOp (unlinear h)) m (CCons m' h' ctx) x
-    in case ctl of
-         Pure _ -> ctl
-         _      -> error "Control.Ev.Eff.lperform: linear operation yielded!"
+  = withSubContext $ \(SubContext (CCons m h g ctx)) ->
+    case useOp (selectOp (unlinear h)) m (g ctx) x of
+      ctl@(Pure _) -> ctl
+      _            -> error "Control.Ev.Eff.lperform: linear operation yielded!"
 
 -- linear tail-resumptive operation (almost all operations)
 {-# INLINE lfunction #-}
 lfunction :: (a -> Eff e b) -> Op a b e ans
 lfunction f = Op (\_ ctx x -> case (under ctx (f x)) of
                                 ctl@(Pure _) -> ctl
-                                _            -> error "Control.Ev.Eff.function_linear: operation declared as linear but it yielded!")
+                                _            -> error "Control.Ev.Eff.lfunction: operation declared as linear but it yielded!")
 
 -- linear value
 {-# INLINE lvalue #-}
@@ -304,7 +292,7 @@ localUpdate f = lperform lupdate f
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
-                 do under (CCons m (Linear (Local r)) ctx) action) -- and call action with the extra evidence
+                 do under (CCons m (Linear (Local r)) id ctx) action) -- and call action with the extra evidence
 
 -- Expose a local state handler to just one handler's operations
 {-# INLINE handlerLocalRet #-}
