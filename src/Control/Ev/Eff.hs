@@ -209,19 +209,6 @@ perform selectOp x
       CCons m h ctx              -> useOp (selectOp h) m ctx x
       HCons m (Hide m' h') h ctx -> useOp (selectOp h) m (CCons m' h' ctx) x
 
-newtype Linear h e ans  = Linear{ unlinear :: (h e ans) }
-
-
-{-# INLINE lperform #-}
-lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
-lperform selectOp x
-  = withSubContext $ \(SubContext sctx) ->
-    Pure $ case (case sctx of
-                   CCons m h ctx              -> useOp (selectOp (unlinear h)) m ctx x
-                   HCons m (Hide m' h') h ctx -> useOp (selectOp (unlinear h)) m (CCons m' h' ctx) x) of
-             Pure x -> x
-
-
 -- tail-resumptive value operation (reader)
 {-# INLINE value #-}
 value :: a -> Op () a e ans
@@ -231,17 +218,6 @@ value x = function (\() -> return x)
 {-# INLINE function #-}
 function :: (a -> Eff e b) -> Op a b e ans
 function f = Op (\_ ctx x -> under ctx (f x))
-
--- tail-resumptive operation (almost all operations)
-{-# INLINE lfunction #-}
-lfunction :: (a -> Eff e b) -> Op a b e ans
-lfunction f = Op (\_ ctx x -> case (under ctx (f x)) of
-                                Pure x -> Pure x
-                                _      -> error "Control.Ev.Eff.function_linear: operation declared as linear but it yielded!")
-
-{-# INLINE lvalue #-}
-lvalue :: a -> Op () a e ans
-lvalue x = lfunction (\() -> return x)
 
 
 -- general operation with a resumption (exceptions, async/await, etc)
@@ -264,6 +240,34 @@ instance Eq (Context e) where
   (HCons m1 _ h1 ctx1) == (HCons m2 _ h2 ctx2)  = (markerEq m1 m2) && (ctx1 == ctx2)
   CNil                 == CNil                  = True
 
+
+--------------------------------------------------------------------------------
+-- Linear effect operations never yield
+--------------------------------------------------------------------------------
+newtype Linear h e ans  = Linear{ unlinear :: (h e ans) }
+
+{-# INLINE lperform #-}
+lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
+lperform selectOp x
+  = withSubContext $ \(SubContext sctx) ->
+    let ctl = case sctx of
+                   CCons m h ctx              -> useOp (selectOp (unlinear h)) m ctx x
+                   HCons m (Hide m' h') h ctx -> useOp (selectOp (unlinear h)) m (CCons m' h' ctx) x
+    in case ctl of
+         Pure _ -> ctl
+         _      -> error "Control.Ev.Eff.lperform: linear operation yielded!"
+
+-- linear tail-resumptive operation (almost all operations)
+{-# INLINE lfunction #-}
+lfunction :: (a -> Eff e b) -> Op a b e ans
+lfunction f = Op (\_ ctx x -> case (under ctx (f x)) of
+                                ctl@(Pure _) -> ctl
+                                _            -> error "Control.Ev.Eff.function_linear: operation declared as linear but it yielded!")
+
+-- linear value
+{-# INLINE lvalue #-}
+lvalue :: a -> Op () a e ans
+lvalue x = lfunction (\() -> return x)
 
 --------------------------------------------------------------------------------
 -- Efficient (and safe) Local state handler
