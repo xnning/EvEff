@@ -18,20 +18,20 @@ Stability   : Experimental
 Efficient effect handlers based on Evidence translation. The implementation
 is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020.
 
-Example:
+An example of defining and using a @Reader@ effect:
 
 @
 -- A @Reader@ effect definition with one operation @ask@ of type @()@ to @a@.
-data Reader a e ans = Reader{ ask :: Op () a e ans }
+data Reader a e ans = Reader{ ask :: `Op` () a e ans }
 
-greet :: (Reader String :? e) => Eff e String
-greet = do s <- perform ask ()
+greet :: (Reader String `:?` e) => `Eff` e String
+greet = do s <- `perform` ask ()
            return ("hello " ++ s)
 
 test :: String
-test = runEff $
-       handler (Reader{ ask = value "world" }) $  -- @:: Reader String () Int@
-       do s <- greet                              -- executes in context @:: Eff (Reader String :* ()) Int@
+test = `runEff` $
+       `handler` (Reader{ ask = `value` "world" }) $  -- @:: Reader String () Int@
+       do s <- greet                              -- executes in context @:: `Eff` (Reader String `:*` ()) Int@
           return (length s)
 @
 
@@ -63,7 +63,7 @@ module Control.Ev.Eff(
             , handlerHide     -- :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
             , mask            -- :: Eff e ans -> Eff (h :* e) ans
 
-            -- ** Defining operations
+            -- * Defining operations
             , Op
             , value           -- :: a -> Op () a e ans
             , function        -- :: (a -> Eff e b) -> Op a b e ans
@@ -102,8 +102,16 @@ infixr 5 :*
 -------------------------------------------------------
 
 -- | An effect context is a type-level list of effects.
--- An effect context always has the form @(h1 :* h2 :* ... :* hn :* ())@ where
--- operations in @h1@ to @h_n@ can be used.
+-- A concrete effect context has the form @(h1 :* h2 :* ... :* hn :* ())@.
+-- An effect context can also be polymorpic, as @(h :* e)@, denoting a top handler
+-- @h@ with a tail @e@. For example the type of @handler@ reflects that in
+-- an expression @(handler hnd action)@ that
+-- the @action@ can perform operations in @h@ as that is now the top handler in the
+-- effect context for @action@:
+--
+-- @
+-- `handler` :: h e ans -> `Eff` (h `:*` e) ans -> `Eff` e ans
+-- @
 --
 -- (Note: The effects in a context are partially applied types -- an effect @h e ans@
 -- denotes a full effect handler (as a value) defined in an effect context @e@ and
@@ -117,7 +125,7 @@ data Context e where
   CNil  :: Context ()
 
 -- A context transformer: this could be defined as a regular function as
---  `type ContextT e e' = Context e -> Context e'`
+-- >  type ContextT e e' = Context e -> Context e'
 -- but we use an explicit representation as a GADT for the identity and
 -- `CCons` versions of the function as that allows the compiler to optimize
 -- much better for the cases where the function is known.
@@ -168,10 +176,10 @@ instance Monad (Eff e) where
 -- For example:
 --
 -- @
--- data Reader a e ans = Reader { ask :: Op () a e ans }
+-- data Reader a e ans = Reader { ask :: `Op` () a e ans }
 --
--- reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
--- reader x = handler (Reader{ ask = value x })
+-- reader :: a -> `Eff` (Reader a `:*` e) ans -> `Eff` e ans
+-- reader x = `handler` (Reader{ ask = `value` x })
 -- @
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
@@ -187,10 +195,10 @@ runEff (Eff eff)  = runCtl (eff CNil)
 -- the /return/ function @ret@. For example:
 --
 -- @
--- data Except a e ans = Except { throwError :: forall b. Op a b e ans }
+-- data Except a e ans = Except { throwError :: forall b. `Op` a b e ans }
 --
--- exceptMaybe :: Eff (Except a :* e) ans -> Eff e (Maybe ans)
--- exceptMaybe = handlerRet Just (Except{ throwError = except (\_ -> return Nothing) })
+-- exceptMaybe :: `Eff` (Except a `:*` e) ans -> `Eff` e (Maybe ans)
+-- exceptMaybe = `handlerRet` Just (Except{ throwError = except (\\_ -> return Nothing) })
 -- @
 handlerRet :: (ans -> a) -> h e a -> Eff (h :* e) ans -> Eff e a
 handlerRet ret h action
@@ -203,8 +211,8 @@ handlerRet ret h action
 -- the regular `local` state. In particular, `handlerLocal` is implemented as:
 --
 -- @
--- handlerLocal :: a -> (h (Local a :* e) ans) -> Eff (h :* e) ans -> Eff e ans
--- handlerLocal init h action = local init (handlerHide h action)
+-- `handlerLocal` :: a -> (h (`Local` a `:*` e) ans) -> `Eff` (h `:*` e) ans -> `Eff` e ans
+-- `handlerLocal` init h action = `local` init (`handlerHide` h action)
 -- @
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
@@ -225,9 +233,9 @@ mask (Eff f) = Eff (\ctx -> f (ctail ctx))
 @h@ is in the effect context @e@. For example:
 
 @
-inc :: (State Int :? e) => Eff e ()
-inc = do i <- perform get ()
-         perform put (i+1) }
+inc :: (State Int `:?` e) => `Eff` e ()
+inc = do i <- `perform` get ()
+         `perform` put (i+1) }
 @
 
 -}
@@ -308,14 +316,14 @@ Usually the operation selector is a field in the data type for the effect handle
 For example:
 
 @
-data Reader a e ans = Reader{ ask :: Op () a e ans }
+data Reader a e ans = Reader{ ask :: `Op` () a e ans }
 
-greet :: (Reader String :? e) => Eff e String
-greet = do s <- perform ask ()
-           return ("hello " ++ s)
+greet :: (Reader String `:?` e) => `Eff` e String
+greet = do s <- `perform` ask ()
+           `return` ("hello " ++ s)
 
-test = runEff $
-       handler (Reader{ ask = value "world" }) $
+test = `runEff` $
+       `handler` (Reader{ ask = `value` "world" }) $
        greet
 @
 
@@ -345,16 +353,16 @@ function f = Op (\_ ctx x -> under ctx (f x))
 -- that can be called to resume from the original call site. For example:
 --
 -- @
--- data Amb e ans = Amb { flip :: forall b. Op () Bool e ans }
+-- data Amb e ans = Amb { flip :: forall b. `Op` () Bool e ans }
 --
--- xor :: (Amb :? e) => Eff e Bool
--- xor = do x <- perform flip ()
---          y <- perform flip ()
+-- xor :: (Amb `:?` e) => `Eff` e Bool
+-- xor = do x <- `perform` flip ()
+--          y <- `perform` flip ()
 --          return ((x && not y) || (not x && y))
 --
--- solutions :: Eff (Amb :* e) a -> Eff e [a]
--- solutions = handlerRet (\\x -> [x]) $
---             Amb{ flip = operation (\\() k -> do{ xs <- k True; ys <- k False; return (xs ++ ys)) }) }
+-- solutions :: `Eff` (Amb `:*` e) a -> `Eff` e [a]
+-- solutions = `handlerRet` (\\x -> [x]) $
+--             Amb{ flip = `operation` (\\() k -> do{ xs <- k True; ys <- k False; return (xs ++ ys)) }) }
 -- @
 operation :: (a -> (b -> Eff e ans) -> Eff e ans) -> Op a b e ans
 operation f = Op (\m ctx x -> yield m $ \ctlk ->
@@ -411,7 +419,7 @@ localPut x = perform lput x
 localUpdate :: (a -> a) -> Eff (Local a :* e) ()
 localUpdate f = perform lupdate f
 
--- | Create a local state handler.
+-- | Create a local state handler with an initial state of type @a@.
 {-# INLINE local #-}
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
@@ -434,13 +442,13 @@ handlerLocalRet init ret h action
 -- apparent from its effect context (which does /not/ contain @Local a@).
 --
 -- @
--- data State a e ans = State { get :: Op () a e ans, put :: Op a () e ans  }
+-- data State a e ans = State { get :: `Op` () a e ans, put :: `Op` a () e ans  }
 --
--- state :: a -> Eff (State a :* e) ans -> Eff e ans
--- state init = handlerLocal init (State{ get = function (\\_ -> perform lget ()),
---                                        put = function (\\x -> perform lput x) })
+-- state :: a -> `Eff` (State a `:*` e) ans -> `Eff` e ans
+-- state init = `handlerLocal` init (State{ get = `function` (\\_ -> `perform` `lget` ()),
+--                                        put = `function` (\\x -> `perform` `lput` x) })
 --
--- test = runEff $
+-- test = `runEff` $
 --        state (41::Int) $
 --        inc                -- see `:?`
 -- @

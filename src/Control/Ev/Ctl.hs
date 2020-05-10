@@ -2,7 +2,7 @@
              ExistentialQuantification    -- forall b ans. Control ...
 #-}
 {-|
-Description : Type-safe multi-prompt control
+Description : Internal module for type-safe multi-prompt control
 Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
 License     : MIT
 Maintainer  : xnning@hku.hk; daan@microsoft.com
