@@ -18,8 +18,8 @@ import System.Random
 import Criterion.Main
 import Criterion.Types
 
-import EffEvScoped
-import qualified Library as E
+import Control.Ev.Eff
+import qualified Control.Ev.Util as E
 
 data Expr
   = Lit Int
@@ -122,13 +122,13 @@ testEvalMixin e = evalState (execWriterT (compMixin e)) []
 
 evalEff ::  (E.Writer String :? e, E.State Env :? e) => Expr -> Eff e Int
 evalEff exp =
-  do (s::Env) <- E.get
-     E.tell (show s ++ "\n")
-     E.tell ("Entering eval with " ++ show exp ++ "\n")
+  do (s::Env) <- perform E.get ()
+     perform E.tell (show s ++ "\n")
+     perform E.tell ("Entering eval with " ++ show exp ++ "\n")
      result <-
        case exp of
          Lit x             -> return x
-         Var s             -> do  e <- E.get
+         Var s             -> do  e <- perform E.get ()
                                   case lookup s e of
                                     Just x  -> return x
                                     _       -> error "Variable not found!"
@@ -136,8 +136,8 @@ evalEff exp =
                                   y <- evalEff r
                                   return (x+y)
          Assign x r        -> do  y <- evalEff r
-                                  e <- E.get
-                                  E.put ((x,y):e)
+                                  e <- perform E.get ()
+                                  perform E.put ((x,y):e)
                                   return y
          Sequence []       -> return 0
          Sequence [x]      -> evalEff x
@@ -145,28 +145,32 @@ evalEff exp =
          While c b         -> do  x <- evalEff c
                                   if (x == 0) then return 0
                                     else (evalEff b >> evalEff exp)
-     E.tell ("Exiting eval with " ++ show result ++ "\n")
+     perform E.tell ("Exiting eval with " ++ show result ++ "\n")
      return result
 
-handleEff ::  Expr -> Eff e (String, Int)
+handleEff ::  Expr -> Eff e (Int, String)
 handleEff e = E.writer "" $
-            E.lstate ([]::Env) $
-            do x <- evalEff e
-               return $ x
+              E.state ([]::Env) $
+              do x <- evalEff e
+                 return $ x
 
-testEvalEff e = fst (erun (handleEff e))
+testEvalEff e = snd (runEff (handleEff e))
 
 ---------------------------------------------------------
 -- ALGEBRAIC NON TAIL
 ---------------------------------------------------------
+stateNonTail :: a -> Eff (E.State a :* e) ans -> Eff e ans
+stateNonTail init
+  = handlerLocal init (E.State{ E.get = operation (\() k -> do{ x <- localGet; k x }),
+                                E.put = operation (\x k  -> do{ localSet x; k () }) })
 
-handleEffNonTail ::  Expr -> Eff e (String, Int)
-handleEffNonTail e = E.writerNonTail "" $
-                   E.lstateNonTail ([]::Env) $
-                   do x <- evalEff e
-                      return $ x
+handleEffNonTail ::  Expr -> Eff e (Int,String)
+handleEffNonTail e = E.writer "" $
+                     stateNonTail ([]::Env) $
+                     do x <- evalEff e
+                        return $ x
 
-testEvalEffNonTail e = fst (erun (handleEffNonTail e))
+testEvalEffNonTail e = snd (runEff (handleEffNonTail e))
 
 ---------------------------------------------------------
 -- TEST

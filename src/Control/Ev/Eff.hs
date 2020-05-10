@@ -227,8 +227,9 @@ guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a
 guard ctx1 ctx2 k x = if (ctx1 == ctx2) then k x else error "Control.Ev.Eff.guard: unscoped resumption under a different handler context"
 
 instance Eq (Context e) where
-  CNil               == CNil                = True
-  (CCons m1 h1 ctx1) == (CCons m2 h2 ctx2)  = (markerEq m1 m2) && (ctx1 == ctx2)
+  (CCons m1 h1 ctx1)   == (CCons m2 h2 ctx2)    = (markerEq m1 m2) && (ctx1 == ctx2)
+  (HCons m1 _ h1 ctx1) == (HCons m2 _ h2 ctx2)  = (markerEq m1 m2) && (ctx1 == ctx2)
+  CNil                 == CNil                  = True
 
 
 --------------------------------------------------------------------------------
