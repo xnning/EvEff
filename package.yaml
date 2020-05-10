@@ -1,10 +1,10 @@
 name:                effev
 version:             0.1.0.0
-github:              "githubuser/effev"
-license:             BSD3
+github:              "xnning/effev"
+license:             MIT
 author:              "Daan Leijen, Ningning Xie"
-maintainer:          "example@example.com"
-copyright:           "2020 Daan Leijen, Ningning Xie"
+maintainer:          "xnning@hku.hk;daan@microsoft.com"
+copyright:           "(c) 2020, Microsoft Research, Daan Leijen, Ningning Xie"
 
 extra-source-files:
 - README.md
@@ -17,7 +17,9 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/effev#readme>
+description:
+  See the "Control.Ev.Eff" module for further information
+  (or the README on GitHub at <https://github.com/xnning/effev#readme>).
 
 
 dependencies:
