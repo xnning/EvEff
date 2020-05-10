@@ -32,7 +32,6 @@ module Control.Ev.Eff(
             , lvalue
             , lperform
 
-
             -- handling
             , handler         -- :: h e ans -> Eff (h :* e) ans -> Eff e ans
             , handlerRet      -- :: (ans -> b) -> h e b -> Eff (h :* e) ans -> Eff e b
@@ -40,13 +39,19 @@ module Control.Ev.Eff(
             , mask            -- :: Eff e ans -> Eff (h :* e) ans
 
             -- local variables
-            , Local           -- Local a e ans
+            , Local, LocalState -- Local a e ans == Linear (LocalState a) e ans
             , local           -- :: a -> Eff (Local a :* e) ans -> Eff e ans
+            , lget            -- :: (Local a :? e) => Eff e a
+            , lput            -- :: (Local a :? e) => a -> Eff e ()
+            , lupdate         -- :: (Local a :? e) => (a -> a) -> Eff e ()
+
             , localGet        -- :: Eff (Local a :* e) a
-            , localSet        -- :: a -> Eff (Local a :* e) ()
+            , localPut        -- :: a -> Eff (Local a :* e) ()
             , localUpdate     -- :: (a -> a) -> Eff (Local a :* e) a
+
             , handlerLocal    -- :: a -> h (Local a :* e) ans -> Eff (h :* e) ans -> Eff e ans
             , handlerLocalRet -- :: a -> (ans -> a -> b) -> h (Local a :* e) b -> Eff (h :* e) ans -> Eff e b
+
             ) where
 
 import Prelude hiding (read,flip)
@@ -268,26 +273,38 @@ lvalue x = lfunction (\() -> return x)
 --------------------------------------------------------------------------------
 -- Efficient (and safe) Local state handler
 --------------------------------------------------------------------------------
-newtype Local a e ans = Local (IORef a)
 
-{-# INLINE localGet #-}
+newtype LocalState a e ans = Local (IORef a)
+
+type Local a = Linear (LocalState a)
+
+{-# INLINE lget #-}
+lget :: LocalState a e ans -> Op () a e ans
+lget (Local r) = Op (\m ctx x -> unsafeIO (readIORef r))
+
+{-# INLINE lput #-}
+lput :: LocalState a e ans -> Op a () e ans
+lput (Local r) = Op (\m ctx x -> unsafeIO (writeIORef r x))
+
+{-# INLINE lupdate #-}
+lupdate :: LocalState a e ans -> Op (a -> a) () e ans
+lupdate (Local r) = Op (\m ctx f -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
+
 localGet :: Eff (Local a :* e) a
-localGet = Eff (\(CCons _ (Local r) _) -> unsafeIO (readIORef r))
+localGet = lperform lget ()
 
-{-# INLINE localSet #-}
-localSet :: a -> Eff (Local a :* e) ()
-localSet x = Eff (\(CCons _ (Local r) _) -> unsafeIO (writeIORef r x))
+localPut :: a -> Eff (Local a :* e) ()
+localPut x = lperform lput x
 
-{-# INLINE localUpdate #-}
 localUpdate :: (a -> a) -> Eff (Local a :* e) ()
-localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
+localUpdate f = lperform lupdate f
+
 
 {-# INLINE local #-}
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
-                 do under (CCons m (Local r) ctx) action) -- and call action with the extra evidence
-
+                 do under (CCons m (Linear (Local r)) ctx) action) -- and call action with the extra evidence
 
 -- Expose a local state handler to just one handler's operations
 {-# INLINE handlerLocalRet #-}

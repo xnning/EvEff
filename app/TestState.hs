@@ -16,7 +16,7 @@ import qualified Control.Monad.State as Ms
 
 -- Extensible Effects
 import qualified Control.Eff as EE
-import qualified Control.Eff.State.Lazy as EEs
+import qualified Control.Eff.State.Strict as EEs
 
 import Control.Ev.Eff
 import Control.Ev.Util
@@ -77,7 +77,7 @@ runCount :: (State Int :? e) =>  Eff e Int
 runCount
   = do i <- perform get ()
        if (i==0) then return i
-        else do perform put $! (i - 1)
+        else do perform put (i - 1)
                 runCount
 
 
@@ -88,8 +88,8 @@ countTail n
 
 stateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
 stateNonTail init
-  = handlerLocal init (State{ get = operation (\() k -> do{ x <- localGet; k x }),
-                              put = operation (\x k  -> do{ localSet x; k () }) })
+  = handlerLocal init (State{ get = operation (\() k -> do{ x <- lperform lget (); k x }),
+                              put = operation (\x k  -> do{ lperform lput x; k () }) })
 
 countNonTail :: Int -> Int
 countNonTail n
@@ -110,33 +110,31 @@ countFun n
   = runEff $ stateFun n $ runCount
 
 
--- runCount :: () -> Eff (State Int :* e) Int
-runCountLoc :: Eff (Local Int :* e) Int
-runCountLoc
-  = do i <- localGet
+runCountBuiltin :: (Local Int :? e) => Eff e Int
+runCountBuiltin
+  = do i <- lperform lget () --localGet
        if (i==0) then return i
-        else do localSet (i - 1)
-                runCountLoc
+        else do -- localPut (i - 1)
+                lperform lput (i - 1)
+                runCountBuiltin
 
 
-countLoc :: Int -> Int
-countLoc n
-  = runEff $ local n $ runCountLoc
+countBuiltin :: Int -> Int
+countBuiltin n
+  = runEff $ local n $ runCountBuiltin
 
 
-
--- runCount :: Eff (State Int :* e) Int
-runCountl :: (Linear (State Int) :? e) =>  Eff e Int
-runCountl
+runCountLinear :: (Linear (State Int) :? e) =>  Eff e Int
+runCountLinear
   = do i <- lperform get ()
        if (i==0) then return i
-        else do lperform put $! (i - 1)
-                runCountl
+        else do lperform put (i - 1)
+                runCountLinear
 
 
 countLinear :: Int -> Int
 countLinear n
-  = runEff $ lstate n $ runCountl
+  = runEff $ lstate n $ runCountLinear
 
 -------------------------------------------------------
 -- TESTS
@@ -150,15 +148,15 @@ st        n = bench "runST"   $ whnf runCountST n
 effFun    n = bench "eff functional state" $ whnf countFun n
 effLoc    n = bench "eff local"            $ whnf countTail n
 effLocNt  n = bench "eff local non tail"   $ whnf countNonTail n
-effLocal  n = bench "eff local builtin"    $ whnf countLoc n
-effLin    n = bench "eff local linear"     $ whnf countLinear n
+effBuiltin n = bench "eff local builtin"    $ whnf countBuiltin n
+effLinear  n = bench "eff local linear"     $ whnf countLinear n
 
 comp n  = [ ppure n
           , monadic n
           , st n
           , ee n
-          , effLocal n
-          , effLin n
+          , effBuiltin n
+          , effLinear n
           , effLoc n
           , effLocNt n
           , effFun n

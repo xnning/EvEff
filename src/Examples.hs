@@ -103,7 +103,7 @@ data State a e ans = State { get :: Op () a e ans
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init = handlerLocal init $
              State{ get = function (\() -> localGet)
-                  , put = function (\x  -> localSet x) }
+                  , put = function (\x  -> localPut x) }
 -- END:statex
 
 -- BEGIN:stateex
@@ -219,7 +219,7 @@ parse input
       do input <- localGet
          case (p input) of
             Nothing -> perform failure ()
-            Just (x, rest) -> do localSet rest
+            Just (x, rest) -> do localPut rest
                                  k x }
 -- END:parsefun
 

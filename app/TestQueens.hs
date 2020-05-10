@@ -81,7 +81,7 @@ firstResult
         []     -> do (Stack stack) <- localGet
                      case stack of
                        []     -> error "no possible solutions"
-                       (z:zs) -> do localSet (Stack zs)
+                       (z:zs) -> do localPut (Stack zs)
                                     z
         (y:ys) -> do localUpdate (\(Stack zs) -> Stack (map k ys ++ zs))
                      k y

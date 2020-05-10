@@ -210,7 +210,7 @@ testEvalEff e = snd (runEff (handleEff e))
 stateNonTail :: a -> Eff (E.State a :* e) ans -> Eff e ans
 stateNonTail init
   = handlerLocal init (E.State{ E.get = operation (\() k -> do{ x <- localGet; k x }),
-                                E.put = operation (\x k  -> do{ localSet x; k () }) })
+                                E.put = operation (\x k  -> do{ localPut x; k () }) })
 
 handleEffNonTail ::  Expr -> Eff e (Int,String)
 handleEffNonTail e = E.writer $

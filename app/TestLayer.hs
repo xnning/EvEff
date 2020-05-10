@@ -221,7 +221,7 @@ layrunEffderEff4 n = runEff $
 stateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
 stateNonTail init
   = handlerLocal init (State{ get = operation (\() k -> do{ x <- localGet; k x }),
-                              put = operation (\x k  -> do{ localSet x; k () }) })
+                              put = operation (\x k  -> do{ localPut x; k () }) })
 
 layerEffNonTail n = runEff $
   stateNonTail (0::Integer) (eff n)

@@ -39,13 +39,13 @@ data State a e ans = State { get :: !(Op () a e ans)
 state :: a -> Eff (State a :* e) ans -> Eff e ans
 state init
   = handlerLocal init (State{ get = function (\_ -> localGet),
-                              put = function (\x -> localSet x) })
+                              put = function (\x -> localPut x) })
 
 {-# INLINE lstate #-}
 lstate :: a -> Eff (Linear (State a) :* e) ans -> Eff e ans
 lstate init
   = handlerLocal init (Linear (State{ get = lfunction (\_ -> localGet),
-                                      put = lfunction (\x -> localSet x) }))
+                                      put = lfunction (\x -> localPut x) }))
 
 
 ------------
