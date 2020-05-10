@@ -153,8 +153,8 @@ instance (h ~ h') => InEq 'True h h' e where
 instance ('False ~ HEqual h h', In h e) => InEq 'False h h' e where
   subContextEq ctx = subContext (ctail ctx)
 
-withSubContext :: (In h e) => (SubContext h -> Ctl a) -> Eff e a
 {-# INLINE withSubContext #-}
+withSubContext :: (In h e) => (SubContext h -> Ctl a) -> Eff e a
 withSubContext f
   = Eff (\ctx -> f (subContext ctx))
 
@@ -195,8 +195,8 @@ newtype Op a b e ans = Op { useOp :: Marker ans -> Context e -> a -> Ctl b}
 
 -- Given evidence and an operation selector, perform the operation
 -- perform :: In h e => (forall e' ans. Handler h e' ans -> Clause a b e' ans) -> a -> Eff e b
-perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 {-# INLINE perform #-}
+perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 perform selectOp x
   = withSubContext $ \(SubContext sctx) ->
     case sctx of
@@ -251,10 +251,8 @@ localUpdate f = Eff (\(CCons _ (Local r) _) -> unsafeIO (do{ x <- readIORef r; w
 
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
-  = do r <- lift $ unsafeIO (newIORef init)
-       -- handler (Local r) action
-       Eff (\ctx -> promptIORef r $ \m ->  -- set a fresh prompt with marker `m`
-                    do under (CCons m (Local r) ctx) action) -- and call action with the extra evidence
+  = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
+                 do under (CCons m (Local r) ctx) action) -- and call action with the extra evidence
 
 
 -- Expose a local state handler to just one handler's operations

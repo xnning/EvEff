@@ -142,9 +142,11 @@ mpromptIORef r action
                                mpromptIORef r (cont x)
               Control m op cont'
 
-promptIORef :: IORef a -> (Marker b -> Ctl b) -> Ctl b
-promptIORef r action
-  = freshMarker $ \m -> mpromptIORef r (action m)
+promptIORef :: a -> (Marker b -> IORef a -> Ctl b) -> Ctl b
+promptIORef init action
+  = freshMarker $ \m ->
+    do r <- unsafeIO (newIORef init)
+       mpromptIORef r (action m r)
 
 
 {-

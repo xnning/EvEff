@@ -60,7 +60,7 @@ runCount :: (State Int :? e) =>  Eff e Int
 runCount
   = do i <- perform get ()
        if (i==0) then return i
-        else do perform put (i - 1)
+        else do perform put $! (i - 1)
                 runCount
 
 
