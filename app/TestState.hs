@@ -16,6 +16,7 @@ import qualified Control.Eff as EE
 import qualified Control.Eff.State.Lazy as EEs
 
 import Control.Ev.Eff
+import Control.Ev.Util
 
 -------------------------------------------------------
 -- PURE
@@ -54,18 +55,12 @@ runEE n = EEs.runState n (countEE ())
 -- Eff local tail
 -------------------------------------------------------
 
-data State a e ans = State { get :: !(Op () a e ans), set :: !(Op a () e ans) }
-
-state :: a -> Eff (State a :* e) ans -> Eff e ans
-state init
-  = handlerLocal init (State{ get = function (\() -> localGet), set = function localSet })
-
 -- runCount :: () -> Eff (State Int :* e) Int
 runCount :: (State Int :? e) =>  Eff e Int
 runCount
   = do i <- perform get ()
        if (i==0) then return i
-        else do perform set (i - 1)
+        else do perform put (i - 1)
                 runCount
 
 
@@ -77,7 +72,7 @@ countTail n
 stateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
 stateNonTail init
   = handlerLocal init (State{ get = operation (\() k -> do{ x <- localGet; k x }),
-                              set = operation (\x k  -> do{ localSet x; k () }) })
+                              put = operation (\x k  -> do{ localSet x; k () }) })
 
 countNonTail :: Int -> Int
 countNonTail n
@@ -87,7 +82,7 @@ countNonTail n
 stateFun :: a -> Eff (State a :* e) ans -> Eff e ans
 stateFun init action
   = do f <- handler (State { get = operation (\() k -> return $ \s -> (k s  >>= \r -> r s ))
-                           , set = operation (\s  k -> return $ \_ -> (k () >>= \r -> r s))
+                           , put = operation (\s  k -> return $ \_ -> (k () >>= \r -> r s))
                            })
                     (do x <- action
                         return (\s -> return x))

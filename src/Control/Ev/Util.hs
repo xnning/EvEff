@@ -1,5 +1,17 @@
 {-# LANGUAGE TypeOperators, FlexibleContexts, Rank2Types, MagicHash #-}
-module Control.Ev.Util where
+module Control.Ev.Util
+  ( Reader(Reader,ask)
+  , reader
+
+  , State(State,get,put)
+  , state
+
+  , Writer(Writer,tell)
+  , writer
+
+  , Exn(Exn,throwError)
+  , exn, defaultExn, maybeExn
+) where
 
 import Control.Ev.Eff
 

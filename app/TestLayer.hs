@@ -7,8 +7,8 @@ module TestLayer where
 
 import Criterion.Main
 import Criterion.Types
-import EffEvScoped
-import Library hiding (main)
+import Control.Ev.Eff
+import Control.Ev.Util
 
 import Control.Monad (foldM)
 import qualified Control.Monad.State as Ms
@@ -61,25 +61,25 @@ layerOverMonadic4 n =
 
 -- LAYER UNDER
 
-layerUnderMonadic1 n =
+layrunEffderMonadic1 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
       monadic n
 
-layerUnderMonadic2 n =
+layrunEffderMonadic2 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
       monadic n
 
-layerUnderMonadic3 n =
+layrunEffderMonadic3 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
      flip Mr.runReaderT True $
       monadic n
 
-layerUnderMonadic4 n =
+layrunEffderMonadic4 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
@@ -127,25 +127,25 @@ layerOverEE4 n = EE.run $
 
 -- LAYER UNDER
 
-layerUnderEE1 n = EE.run $
+layrunEffderEE1 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     ee n
 
-layerUnderEE2 n = EE.run $
+layrunEffderEE2 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
     ee n
 
-layerUnderEE3 n = EE.run $
+layrunEffderEE3 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
     EEr.runReader True $
     ee n
 
-layerUnderEE4 n = EE.run $
+layrunEffderEE4 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
@@ -159,56 +159,56 @@ layerUnderEE4 n = EE.run $
 
 eff :: (State Integer :? e) => Integer -> Eff e Integer
 eff n = foldM f 1 [n, n-1 .. 0]
-  where f acc x | x `mod` 5 == 0 = do n <- get
-                                      put (n+1)
+  where f acc x | x `mod` 5 == 0 = do n <- perform get ()
+                                      perform put (n+1)
                                       return (max acc x)
         f acc x = return (max acc x)
 
-layerEff n = erun $
-  lstate (0::Integer) (eff n)
+layerEff n = runEff $
+  state (0::Integer) (eff n)
 
-layerOverEff1 n = erun $
+layerOverEff1 n = runEff $
   reader (0::Int) $
-    lstate (0::Integer) (eff n)
+    state (0::Integer) (eff n)
 
-layerOverEff2 n = erun $
+layerOverEff2 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
-    lstate (0::Integer) (eff n)
+    state (0::Integer) (eff n)
 
-layerOverEff3 n = erun $
+layerOverEff3 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
-    lstate (0::Integer) (eff n)
+    state (0::Integer) (eff n)
 
-layerOverEff4 n = erun $
+layerOverEff4 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
   reader "0" $
-    lstate (0::Integer) (eff n)
+    state (0::Integer) (eff n)
 
-layerUnderEff1 n = erun $
-  lstate (0::Integer) $
+layrunEffderEff1 n = runEff $
+  state (0::Integer) $
     reader (0::Int) $
     eff n
 
-layerUnderEff2 n = erun $
-  lstate (0::Integer) $
+layrunEffderEff2 n = runEff $
+  state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     eff n
 
-layerUnderEff3 n = erun $
-  lstate (0::Integer) $
+layrunEffderEff3 n = runEff $
+  state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     reader True $
     eff n
 
-layerUnderEff4 n = erun $
-  lstate (0::Integer) $
+layrunEffderEff4 n = runEff $
+  state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     reader True $
@@ -218,52 +218,56 @@ layerUnderEff4 n = erun $
 -------------------------------------------------------
 -- EFF NON TAIL
 -------------------------------------------------------
+stateNonTail :: a -> Eff (State a :* e) ans -> Eff e ans
+stateNonTail init
+  = handlerLocal init (State{ get = operation (\() k -> do{ x <- localGet; k x }),
+                              put = operation (\x k  -> do{ localSet x; k () }) })
 
-layerEffNonTail n = erun $
-  lstateNonTail (0::Integer) (eff n)
+layerEffNonTail n = runEff $
+  stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail1 n = erun $
+layerOverEffNonTail1 n = runEff $
   reader (0::Int) $
-    lstateNonTail (0::Integer) (eff n)
+    stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail2 n = erun $
+layerOverEffNonTail2 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
-    lstateNonTail (0::Integer) (eff n)
+    stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail3 n = erun $
+layerOverEffNonTail3 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
-    lstateNonTail (0::Integer) (eff n)
+    stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail4 n = erun $
+layerOverEffNonTail4 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
   reader "0" $
-    lstateNonTail (0::Integer) (eff n)
+    stateNonTail (0::Integer) (eff n)
 
-layerUnderEffNonTail1 n = erun $
-  lstateNonTail (0::Integer) $
+layrunEffderEffNonTail1 n = runEff $
+  stateNonTail (0::Integer) $
     reader (0::Int) $
     eff n
 
-layerUnderEffNonTail2 n = erun $
-  lstateNonTail (0::Integer) $
+layrunEffderEffNonTail2 n = runEff $
+  stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     eff n
 
-layerUnderEffNonTail3 n = erun $
-  lstateNonTail (0::Integer) $
+layrunEffderEffNonTail3 n = runEff $
+  stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     reader True $
     eff n
 
-layerUnderEffNonTail4 n = erun $
-  lstateNonTail (0::Integer) $
+layrunEffderEffNonTail4 n = runEff $
+  stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     reader True $
@@ -279,40 +283,40 @@ comp n = [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "monadic over 2"     $ whnf layerOverMonadic2 n
          , bench "monadic over 3"     $ whnf layerOverMonadic3 n
          , bench "monadic over 4"     $ whnf layerOverMonadic4 n
-         , bench "monadic under 1"    $ whnf layerUnderMonadic1 n
-         , bench "monadic under 2"    $ whnf layerUnderMonadic2 n
-         , bench "monadic under 3"    $ whnf layerUnderMonadic3 n
-         , bench "monadic under 4"    $ whnf layerUnderMonadic4 n
+         , bench "monadic under 1"    $ whnf layrunEffderMonadic1 n
+         , bench "monadic under 2"    $ whnf layrunEffderMonadic2 n
+         , bench "monadic under 3"    $ whnf layrunEffderMonadic3 n
+         , bench "monadic under 4"    $ whnf layrunEffderMonadic4 n
 
-         , bench "extensive effects 0"          $ whnf layerEE n
-         , bench "extensive effects over 1"     $ whnf layerOverEE1 n
-         , bench "extensive effects over 2"     $ whnf layerOverEE2 n
-         , bench "extensive effects over 3"     $ whnf layerOverEE3 n
-         , bench "extensive effects over 4"     $ whnf layerOverEE4 n
-         , bench "extensive effects under 1"    $ whnf layerUnderEE1 n
-         , bench "extensive effects under 2"    $ whnf layerUnderEE2 n
-         , bench "extensive effects under 3"    $ whnf layerUnderEE3 n
-         , bench "extensive effects under 4"    $ whnf layerUnderEE4 n
+         , bench "extensible effects 0"          $ whnf layerEE n
+         , bench "extensible effects over 1"     $ whnf layerOverEE1 n
+         , bench "extensible effects over 2"     $ whnf layerOverEE2 n
+         , bench "extensible effects over 3"     $ whnf layerOverEE3 n
+         , bench "extensible effects over 4"     $ whnf layerOverEE4 n
+         , bench "extensible effects under 1"    $ whnf layrunEffderEE1 n
+         , bench "extensible effects under 2"    $ whnf layrunEffderEE2 n
+         , bench "extensible effects under 3"    $ whnf layrunEffderEE3 n
+         , bench "extensible effects under 4"    $ whnf layrunEffderEE4 n
 
          , bench "eff 0"          $ whnf layerEff n
          , bench "eff over 1"     $ whnf layerOverEff1 n
          , bench "eff over 2"     $ whnf layerOverEff2 n
          , bench "eff over 3"     $ whnf layerOverEff3 n
          , bench "eff over 4"     $ whnf layerOverEff4 n
-         , bench "eff under 1"    $ whnf layerUnderEff1 n
-         , bench "eff under 2"    $ whnf layerUnderEff2 n
-         , bench "eff under 3"    $ whnf layerUnderEff3 n
-         , bench "eff under 4"    $ whnf layerUnderEff4 n
+         , bench "eff under 1"    $ whnf layrunEffderEff1 n
+         , bench "eff under 2"    $ whnf layrunEffderEff2 n
+         , bench "eff under 3"    $ whnf layrunEffderEff3 n
+         , bench "eff under 4"    $ whnf layrunEffderEff4 n
 
          , bench "eff nontail 0"          $ whnf layerEffNonTail n
          , bench "eff nontail over 1"     $ whnf layerOverEffNonTail1 n
          , bench "eff nontail over 2"     $ whnf layerOverEffNonTail2 n
          , bench "eff nontail over 3"     $ whnf layerOverEffNonTail3 n
          , bench "eff nontail over 4"     $ whnf layerOverEffNonTail4 n
-         , bench "eff nontail under 1"    $ whnf layerUnderEffNonTail1 n
-         , bench "eff nontail under 2"    $ whnf layerUnderEffNonTail2 n
-         , bench "eff nontail under 3"    $ whnf layerUnderEffNonTail3 n
-         , bench "eff nontail under 4"    $ whnf layerUnderEffNonTail4 n
+         , bench "eff nontail under 1"    $ whnf layrunEffderEffNonTail1 n
+         , bench "eff nontail under 2"    $ whnf layrunEffderEffNonTail2 n
+         , bench "eff nontail under 3"    $ whnf layrunEffderEffNonTail3 n
+         , bench "eff nontail under 4"    $ whnf layrunEffderEffNonTail4 n
          ]
 
 num :: Integer
