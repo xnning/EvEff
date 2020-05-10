@@ -69,9 +69,20 @@ infixr 5 :*
 -------------------------------------------------------
 data (h :: * -> * -> *) :* e
 
+
 data Context e where
-  CCons :: !(Marker ans) -> !(h e' ans) -> !(Context e -> Context e') -> !(Context e) -> Context (h :* e)
+  CCons :: !(Marker ans) -> !(h e' ans) -> !(ContextT e e') -> !(Context e) -> Context (h :* e)
   CNil  :: Context ()
+
+data ContextT e e' where
+  CTId  :: ContextT e e
+  CTCons:: Marker ans -> h e' ans -> !(ContextT e e') -> ContextT e (h :* e)
+  -- Fun :: !(Context e -> Context e') -> ContextT e e'
+
+applyT :: ContextT e e' -> Context e -> Context e'
+applyT (CTId) ctx         = ctx
+applyT (CTCons m h g) ctx = CCons m h g ctx
+--applyT (CTFun f) ctx = f ctx
 
 ctail :: Context (h :* e) -> Context e
 ctail (CCons _ _ _ ctx)   = ctx
@@ -104,7 +115,7 @@ instance Monad (Eff e) where
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
   = Eff (\ctx -> prompt $ \m ->                      -- set a fresh prompt with marker `m`
-                 do under (CCons m h id ctx) action) -- and call action with the extra evidence
+                 do under (CCons m h CTId ctx) action) -- and call action with the extra evidence
 
 runEff :: Eff () a -> a
 runEff (Eff eff)  = runCtl (eff CNil)
@@ -118,8 +129,8 @@ handlerRet f h action
 -- A handler `h` that hides one handler `h'` in its action, but `h'` is visible in the operation definitions of `h`
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
-  = Eff (\(CCons m' h' g' ctx') -> prompt $ \m -> let g ctx = CCons m' h' g' ctx
-                                                  in under (CCons m h g ctx') action)
+  = Eff (\(CCons m' h' g' ctx') -> prompt $ \m -> --let g ctx = CCons m' h' g' ctx
+                                                  under (CCons m h (CTCons m' h' g') ctx') action)
 
 
 
@@ -200,7 +211,7 @@ data Op a b e ans = Op { useOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 {-# INLINE perform #-}
 perform :: In h e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 perform selectOp x
-  = withSubContext (\(SubContext (CCons m h g ctx)) -> useOp (selectOp h) m (g ctx) x)
+  = withSubContext (\(SubContext (CCons m h g ctx)) -> useOp (selectOp h) m (applyT g ctx) x)
 
 -- tail-resumptive value operation (reader)
 {-# INLINE value #-}
@@ -242,7 +253,7 @@ newtype Linear h e ans  = Linear{ unlinear :: (h e ans) }
 lperform :: In (Linear h) e => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
 lperform selectOp x
   = withSubContext $ \(SubContext (CCons m h g ctx)) ->
-    case useOp (selectOp (unlinear h)) m (g ctx) x of
+    case useOp (selectOp (unlinear h)) m (applyT g ctx) x of
       ctl@(Pure _) -> ctl
       _            -> error "Control.Ev.Eff.lperform: linear operation yielded!"
 
@@ -292,7 +303,7 @@ localUpdate f = lperform lupdate f
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
-                 do under (CCons m (Linear (Local r)) id ctx) action) -- and call action with the extra evidence
+                 do under (CCons m (Linear (Local r)) CTId ctx) action) -- and call action with the extra evidence
 
 -- Expose a local state handler to just one handler's operations
 {-# INLINE handlerLocalRet #-}
