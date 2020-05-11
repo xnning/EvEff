@@ -11,12 +11,12 @@ data Reader a e ans = Reader { ask :: Op () a e ans }
 -- END:reader
 
 -- BEGIN:readerhr
-hr :: a -> Reader a e ans
-hr x = Reader{ ask = operation (\ () k -> k x) }
+hr :: a -> Reader a e ans  
+hr x = Reader{ ask = operation (\ () k -> k x) } 
 -- END:readerhr
 
 -- BEGIN:readerh
-reader :: a -> Eff (Reader a :* e) ans -> Eff e ans
+reader :: a -> Eff (Reader a :* e) ans -> Eff e ans  
 reader x action = handler (hr x) action
 -- END:readerh
 
@@ -30,7 +30,7 @@ sample1 = reader "world" $
 -- END:readerex1
 
 -- BEGIN:readermult
-greetOrExit :: (Reader String :? e, Reader Bool :? e)
+greetOrExit :: (Reader String :? e, Reader Bool :? e)  
    => Eff e String
 greetOrExit
   = do s <- perform ask ()
@@ -40,20 +40,20 @@ greetOrExit
 -- END:readermult
 
 -- BEGIN:readernoctx
-greetMaybe :: Reader String :? e => Eff e (Maybe String)
+greetMaybe :: Reader String :? e => Eff e (Maybe String)    
 greetMaybe = do s <- perform ask ()
                 if null s then return Nothing
                 else return (Just ("hello " ++ s))
 -- END:readernoctx
 
 -- BEGIN:readergreet
-greet :: (Reader String :? e) => Eff e String
+greet :: (Reader String :? e) => Eff e String  
 greet = do s <- perform ask ()
            return ("hello " ++ s)
 -- END:readergreet
 
 -- BEGIN:readerex
-helloWorld :: Eff e String
+helloWorld :: Eff e String  
 helloWorld = reader "world" greet
 -- END:readerex
 
@@ -63,7 +63,7 @@ data Exn e ans
 -- END:exn
 
 -- BEGIN:toMaybe
-toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)
+toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)  
 toMaybe action
   = handler (Exn{ failure = operation (\ () _ -> return Nothing) }) $
     do x <- action
