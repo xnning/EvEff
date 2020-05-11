@@ -1,4 +1,7 @@
-{-# LANGUAGE TypeOperators, FlexibleContexts, Rank2Types #-}
+{-# LANGUAGE TypeOperators, FlexibleContexts, Rank2Types, GADTs
+, FlexibleInstances,
+ MultiParamTypeClasses
+, DataKinds #-}
 
 module TestQueens where
 
@@ -13,12 +16,21 @@ import Debug.Trace
 import Control.Ev.Eff
 import Control.Ev.Util
 
+-- Extensible Effects
+import qualified Control.Eff as EE
+import qualified Control.Eff.Extend as EEe
+import Data.Function (fix)
+
 safeAddition :: [Int] -> Int -> Int -> Bool
 safeAddition [] _ _ = True
 safeAddition (r:rows) row i =
    row /= r &&
    abs (row - r) /= i &&
    safeAddition rows row (i + 1)
+
+------------------------
+-- PURE
+------------------------
 
 -- hand-coded solution to the n-queens problem
 queensPure :: Int -> [[Int]]
@@ -28,7 +40,44 @@ queensPure n = foldM f [] [1..n] where
                 safeAddition rows row 1]
 
 ------------------------
--- Choose
+-- EE
+------------------------
+
+data ChooseEE a where
+  ChooseEE :: [b] -> ChooseEE b
+
+chooseEE :: (EE.Member (ChooseEE) r) => [b] -> EE.Eff r b
+chooseEE xs = EEe.send (ChooseEE xs)
+
+instance EEe.Handle ChooseEE r a (EE.Eff r' (Maybe k)) where
+  handle step q (ChooseEE ys) = firstJust ys
+     where firstJust xs = case xs of
+             []      -> return Nothing
+             (x:xs') -> do res <- step (q EEe.^$ x)
+                           case res of
+                             Nothing -> firstJust xs'
+                             _ -> return res
+
+failedEE :: (EE.Member ChooseEE r) => EE.Eff r b
+failedEE = chooseEE []
+
+withChooseEE :: Monad m => b -> m (Maybe b)
+withChooseEE = return . Just
+
+queensCompEE :: (EE.Member ChooseEE r) => Int -> EE.Eff r [Int]
+queensCompEE n = foldM f [] [1..n] where
+    f rows _ = do row <- chooseEE [1..n]
+                  if (safeAddition rows row 1)
+                    then return (row : rows)
+                    else failedEE
+
+runChooseEE :: EE.Eff (ChooseEE ': r) a -> EE.Eff r (Maybe a)
+runChooseEE = fix (EEe.handle_relay withChooseEE)
+
+queensMaybeEE n = EE.run (runChooseEE (queensCompEE n))
+
+------------------------
+-- EFF
 ------------------------
 
 data Choose e ans = Choose { choose :: forall b. Op [b] b e ans }
@@ -42,10 +91,6 @@ queensComp n = foldM f [] [1..n] where
                   if (safeAddition rows row 1)
                     then return (row : rows)
                     else failed
-
-------------------------
--- MAYBE
-------------------------
 
 maybeResult :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
 maybeResult
@@ -93,10 +138,12 @@ queensFirst n = firstResult $ queensComp n
 pureTest       n = head $ queensPure n
 maybeTest      n = runEff $ queensMaybe n
 firstTest      n = runEff $ queensFirst n
+maybeTestEE    n = queensMaybeEE n
 
 comp n = [ bench "monad"          $ whnf pureTest n
          , bench "effect maybe"   $ whnf maybeTest n
          , bench "effect first "  $ whnf firstTest n
+         , bench "ee maybe"       $ whnf maybeTestEE n
          ]
 
 

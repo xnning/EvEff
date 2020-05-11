@@ -97,11 +97,11 @@ makeChoiceA0 =  handlerRet (\x -> [x])
              where loop k acc 0 = return (concat acc)
                    loop k acc n = do x <- k n
                                      loop k (x:acc) (n-1)
-                                 
-             
+
+
 
 runPythEff :: Int -> ([(Int,Int,Int)])
-runPythEff n = runEff $ makeChoiceA0 $ epyth n 
+runPythEff n = runEff $ makeChoiceA0 $ epyth n
 
 testEff = pyth20 == (runPythEff 20)
 
@@ -148,11 +148,11 @@ makeChoiceA =  handlerLocalRet (Q []) (\x _ -> [x]) $
                                                    localPut (Q (map k [1..hi] ++ q))
                                                    step)
                    }
-                   
+
 step :: Eff (Local (Q e a) :* e) [a]
 step     = do (Q q) <- localGet
               case q of
-                (m:ms) -> do localPut (Q ms) 
+                (m:ms) -> do localPut (Q ms)
                              xs <- m
                              ys <- step
                              return (xs ++ ys)
