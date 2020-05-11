@@ -104,8 +104,8 @@ infixr 5 :*
 -- | An effect context is a type-level list of effects.
 -- A concrete effect context has the form @(h1 :* h2 :* ... :* hn :* ())@.
 -- An effect context can also be polymorpic, as @(h :* e)@, denoting a top handler
--- @h@ with a tail @e@. For example the type of @handler@ reflects that in
--- an expression @(handler hnd action)@ that
+-- @h@ with a tail @e@. For example the type of `handler` reflects that in
+-- an expression @(`handler` hnd action)@ that
 -- the @action@ can perform operations in @h@ as that is now the top handler in the
 -- effect context for @action@:
 --
@@ -314,7 +314,7 @@ class SubH h where
 data Op a b e ans = Op { applyOp :: !(Marker ans -> Context e -> a -> Ctl b) }
 
 {-| Given an operation selector, perform the operation. The type of the selector
-function is a bit intimidating, but it just selects the right operation @Op@ from the
+function is a bit intimidating, but it just selects the right operation `Op` from the
 handler @h@ regardless of the effect context @e'@ and answer type @ans@ where the
 handler is defined.
 
@@ -355,7 +355,7 @@ function f = Op (\_ ctx x -> under ctx (f x))
 
 
 -- | Create an fully general operation from type @a@ to @b@.
--- the function @f@ takes the argument, and a /resumption/ function of type @b -> Eff e ans@
+-- the function @f@ takes the argument, and a /resumption/ function of type @b -> `Eff` e ans@
 -- that can be called to resume from the original call site. For example:
 --
 -- @
@@ -432,18 +432,18 @@ local init action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
                  do under (CCons m (Local r) CTId ctx) action) -- and call action with the extra evidence
 
--- | Create a new handler for @h@ which can access the /locally isolated state/ @Local a@.
+-- | Create a new handler for @h@ which can access the /locally isolated state/ @`Local` a@.
 -- This is fully local to the handler @h@ only and not visible in the @action@ as
--- apparent from its effect context (which does /not/ contain @Local a@). The
+-- apparent from its effect context (which does /not/ contain @`Local` a@). The
 -- @ret@ argument can be used to transform the final result combined with the final state.
 {-# INLINE handlerLocalRet #-}
 handlerLocalRet :: a -> (ans -> a -> b) -> (h (Local a :* e) b) -> Eff (h :* e) ans -> Eff e b
 handlerLocalRet init ret h action
   = local init $ handlerHideRetEff (\x -> do{ y <- localGet; return (ret x y)}) h action
 
--- | Create a new handler for @h@ which can access the /locally isolated state/ @Local a@.
+-- | Create a new handler for @h@ which can access the /locally isolated state/ @`Local` a@.
 -- This is fully local to the handler @h@ only and not visible in the @action@ as
--- apparent from its effect context (which does /not/ contain @Local a@).
+-- apparent from its effect context (which does /not/ contain @`Local` a@).
 --
 -- @
 -- data State a e ans = State { get :: `Op` () a e ans, put :: `Op` a () e ans  }
