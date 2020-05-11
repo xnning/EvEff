@@ -53,17 +53,17 @@ greet = do s <- perform ask ()
 -- END:readergreet
 
 -- BEGIN:readerex
-helloWorld :: Eff e String  
+helloWorld :: Eff e String   
 helloWorld = reader "world" greet
 -- END:readerex
 
 -- BEGIN:exn
 data Exn e ans
-     = Exn { failure :: forall a. Op () a e ans }
+     = Exn { failure :: forall a. Op () a e ans }  
 -- END:exn
 
 -- BEGIN:toMaybe
-toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)  
+toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)    
 toMaybe action
   = handler (Exn{ failure = operation (\ () _ -> return Nothing) }) $
     do x <- action
@@ -71,18 +71,18 @@ toMaybe action
 -- END:toMaybe
 
 -- BEGIN:exceptDefault
-exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a
+exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a  
 exceptDefault x = handler Exn{
   failure = operation (\ () _ -> return x) }
 -- END:exceptDefault
 
 -- BEGIN:exnex
-safeDiv :: (Exn :? e) => Int -> Int -> Eff e Int
+safeDiv :: (Exn :? e) => Int -> Int -> Eff e Int  
 safeDiv x 0 = perform failure ()
 safeDiv x y = return (x `div` y)
 -- END:exnex
 
-safeHead :: (Exn :? e) => String -> Eff e Char
+safeHead :: (Exn :? e) => String -> Eff e Char  
 safeHead []    = perform failure ()
 safeHead (x:_) = return x
 
@@ -95,32 +95,32 @@ sample3 = reader "" $
 -- introduce handlerRet
 
 -- BEGIN:state
-data State a e ans = State { get :: Op () a e ans
+data State a e ans = State { get :: Op () a e ans  
                            , put :: Op a () e ans }
 -- END:state
 
 -- BEGIN:statex
-state :: a -> Eff (State a :* e) ans -> Eff e ans
+state :: a -> Eff (State a :* e) ans -> Eff e ans  
 state init = handlerLocal init $
              State{ get = function (\() -> localGet)
                   , put = function (\x  -> localPut x) }
 -- END:statex
 
 -- BEGIN:stateex
-add :: (State Int :? e) => Int -> Eff e ()
+add :: (State Int :? e) => Int -> Eff e ()  
 add i = do j <- perform get ()
            perform put (i + j)
 -- END:stateex
 
 -- BEGIN:invert
-invert :: (State Bool :? e) => Eff e Bool
+invert :: (State Bool :? e) => Eff e Bool  
 invert = do b <- perform get ()
             perform put (not b)
             perform get ()
 -- END:invert
 
 -- BEGIN:double
-test :: Eff e Bool
+test :: Eff e Bool  
 test = state True $ do invert
                        b <- perform get ()
                        return b
@@ -135,9 +135,9 @@ adder = state (1::Int) $
 
 
 -- BEGIN:output
-data Output e ans = Output { out :: Op String () e ans }
+data Output e ans = Output { out :: Op String () e ans }  
 
-output :: Eff (Output :* e) ans -> Eff e (ans,String)
+output :: Eff (Output :* e) ans -> Eff e (ans,String)  
 output
   = handlerLocalRet [] (\x ss -> (x,concat ss)) $
     Output { out = function (\x -> localUpdate (x:)) }
@@ -147,18 +147,18 @@ output
 
 -- BEGIN:amb
 data Amb e ans
-     = Amb { flip :: forall b. Op () Bool e ans }
+     = Amb { flip :: forall b. Op () Bool e ans }  
 -- END:amb
 
 -- BEGIN:xor
-xor :: Amb :? e => Eff e Bool
+xor :: Amb :? e => Eff e Bool  
 xor = do x <- perform flip ()
          y <- perform flip ()
          return ((x && not y) || (not x && y))
 -- END:xor
 
 -- BEGIN:allresults
-allResults :: Eff (Amb :* e) a -> Eff e [a]
+allResults :: Eff (Amb :* e) a -> Eff e [a]  
 allResults = handlerRet (\x -> [x]) Amb{
   flip = operation (\ () k ->
             do xs <- k True
@@ -167,7 +167,7 @@ allResults = handlerRet (\x -> [x]) Amb{
 -- END:allresults
 
 -- BEGIN:backtrack
-firstResult :: Eff (Amb :* e) (Maybe a)
+firstResult :: Eff (Amb :* e) (Maybe a)   
   -> Eff e (Maybe a)
 firstResult = handler Amb{
   flip = operation (\ () k ->
@@ -180,39 +180,39 @@ firstResult = handler Amb{
 
 
 -- BEGIN:solutions
-solutions :: Eff (Exn :* Amb :* e) a -> Eff e [a]
+solutions :: Eff (Exn :* Amb :* e) a -> Eff e [a]  
 solutions action
   = fmap catMaybes (allResults (toMaybe (action)))
 -- END:solutions
 
 -- BEGIN:eager
-eager :: Eff (Exn :* Amb :* e) a -> Eff e (Maybe a)
+eager :: Eff (Exn :* Amb :* e) a -> Eff e (Maybe a)  
 eager action = firstResult (toMaybe (action))
 -- END:eager
 
 -- BEGIN:choice
-choice :: Amb :? e => Eff e a -> Eff e a -> Eff e a
+choice :: Amb :? e => Eff e a -> Eff e a -> Eff e a  
 choice p1 p2 = do b <- perform flip ()
                   if b then p1 else p2
 -- END:choice
 
 -- BEGIN:manyeg
-many :: Amb :? e => (() -> Eff e a) -> Eff e [a]
+many :: Amb :? e => (() -> Eff e a) -> Eff e [a]  
 many p = choice (many1 p) (return [])
 
-many1 :: Amb :? e => (() -> Eff e a) -> Eff e [a]
+many1 :: Amb :? e => (() -> Eff e a) -> Eff e [a]  
 many1 p = do x <- p (); xs <- many p ; return (x:xs)
 -- END:manyeg
 
 -- BEGIN:parse
 data Parse e ans = Parse {
   satisfy :: forall a.
-        Op (String -> (Maybe (a, String))) a e ans }
+        Op (String -> (Maybe (a, String))) a e ans }  
 -- END:parse
 
 -- BEGIN:parsefun
 parse :: Exn :? e =>
-  String -> Eff (Parse :* e) b -> Eff e (b, String)
+  String -> Eff (Parse :* e) b -> Eff e (b, String)  
 parse input
   = handlerLocalRet input (\x y -> (x, y)) $
     Parse { satisfy = operation $ \p k ->
@@ -229,29 +229,29 @@ symbol c = perform satisfy (\input -> case input of
     (d:rest) | d == c -> Just (c, rest)
     _ -> Nothing)
 
-digit :: Parse :? e => () -> Eff e Int
+digit :: Parse :? e => () -> Eff e Int  
 digit c = perform satisfy (\input -> case input of
     (d:rest) | isDigit d -> Just (digitToInt d, rest)
     _ -> Nothing)
 -- END:symbol
 
 -- BEGIN:expr
-expr :: (Parse :? e, Amb :? e) => Eff e Int
+expr :: (Parse :? e, Amb :? e) => Eff e Int  
 expr = choice (do i <- term; symbol '+'; j <- term
                   return (i + j))
               term
 
-term :: (Parse :? e, Amb :? e) => Eff e Int
+term :: (Parse :? e, Amb :? e) => Eff e Int  
 term = choice (do i <- factor; symbol '*'; j <- factor
                   return (i * j))
               factor
 
-factor :: (Parse :? e, Amb :? e) => Eff e Int
+factor :: (Parse :? e, Amb :? e) => Eff e Int  
 factor = choice (do symbol '('; i <- expr; symbol ')'
                     return i)
                 number
 
-number :: (Parse :? e, Amb :? e) => Eff e Int
+number :: (Parse :? e, Amb :? e) => Eff e Int  
 number = do xs <- many1 digit
             return $ foldl (\n d -> 10 * n + d) 0 xs
 
