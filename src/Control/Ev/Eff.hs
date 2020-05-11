@@ -74,6 +74,7 @@ module Control.Ev.Eff(
             , Local           -- Local a e ans
 
             , local           -- :: a -> Eff (Local a :* e) ans -> Eff e ans
+            , localRet        -- :: a -> (ans -> a -> b) -> Eff (Local a :* e) ans -> Eff e b
             , handlerLocal    -- :: a -> h (Local a :* e) ans -> Eff (h :* e) ans -> Eff e ans
             , handlerLocalRet -- :: a -> (ans -> a -> b) -> h (Local a :* e) b -> Eff (h :* e) ans -> Eff e b
 
@@ -425,12 +426,22 @@ localPut x = perform lput x
 localUpdate :: (a -> a) -> Eff (Local a :* e) ()
 localUpdate f = perform lupdate f
 
+-- | Create a local state handler with an initial state of type @a@,
+-- with a return function to combine the final result with the final state to a value of type @b@.
+{-# INLINE localRet #-}
+localRet :: a -> (ans -> a -> b) -> Eff (Local a :* e) ans -> Eff e b
+localRet init ret action
+  = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
+                 do x <- under (CCons m (Local r) CTId ctx) action -- and call action with the extra evidence
+                    y <- unsafeIO (readIORef r)
+                    return (ret x y))
+
 -- | Create a local state handler with an initial state of type @a@.
 {-# INLINE local #-}
 local :: a -> Eff (Local a :* e) ans -> Eff e ans
 local init action
-  = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
-                 do under (CCons m (Local r) CTId ctx) action) -- and call action with the extra evidence
+ = localRet init const action
+
 
 -- | Create a new handler for @h@ which can access the /locally isolated state/ @`Local` a@.
 -- This is fully local to the handler @h@ only and not visible in the @action@ as
