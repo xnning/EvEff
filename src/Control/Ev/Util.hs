@@ -71,7 +71,7 @@ data Writer a e ans = Writer { tell :: !(Op a () e ans) -- ^ Output a value of t
 writer :: (Monoid a) => Eff (Writer a :* e) ans -> Eff e (ans,a)
 writer
   = handlerLocalRet [] (\x xs -> (x,mconcat (reverse xs))) $
-    Writer{ tell = function (\x -> do{ localUpdate (\xs -> x:xs); return () }) }
+    Writer{ tell = function (\x -> do{ xs <- localGet; localPut (x:xs); return () }) }
 
 
 ------------

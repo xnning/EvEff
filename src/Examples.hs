@@ -140,7 +140,7 @@ data Output e ans = Output { out :: Op String () e ans }
 output :: Eff (Output :* e) ans -> Eff e (ans,String)  
 output
   = handlerLocalRet [] (\x ss -> (x,concat ss)) $
-    Output { out = function (\x -> localUpdate (x:)) }
+    Output { out = function (\x -> localModify (x:)) }
 
 -- END:output
 

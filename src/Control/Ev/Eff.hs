@@ -80,11 +80,11 @@ module Control.Ev.Eff(
 
             , lget            -- :: (Local a :? e) => Eff e a
             , lput            -- :: (Local a :? e) => a -> Eff e ()
-            , lupdate         -- :: (Local a :? e) => (a -> a) -> Eff e ()
+            , lmodify         -- :: (Local a :? e) => (a -> a) -> Eff e ()
 
             , localGet        -- :: Eff (Local a :* e) a
             , localPut        -- :: a -> Eff (Local a :* e) ()
-            , localUpdate     -- :: (a -> a) -> Eff (Local a :* e) a
+            , localModify     -- :: (a -> a) -> Eff (Local a :* e) a
 
             ) where
 
@@ -180,6 +180,7 @@ instance Monad (Eff e) where
 -- reader :: a -> `Eff` (Reader a `:*` e) ans -> `Eff` e ans
 -- reader x = `handler` (Reader{ ask = `value` x })
 -- @
+{-# INLINE handler #-}
 handler :: h e ans -> Eff (h :* e) ans -> Eff e ans
 handler h action
   = Eff (\ctx -> prompt $ \m ->                      -- set a fresh prompt with marker `m`
@@ -199,6 +200,7 @@ runEff (Eff eff)  = runCtl (eff CNil)
 -- exceptMaybe :: `Eff` (Except a `:*` e) ans -> `Eff` e (Maybe ans)
 -- exceptMaybe = `handlerRet` Just (Except{ throwError = except (\\_ -> return Nothing) })
 -- @
+{-# INLINE handlerRet #-}
 handlerRet :: (ans -> a) -> h e a -> Eff (h :* e) ans -> Eff e a
 handlerRet ret h action
   = handler h (do x <- action; return (ret x))
@@ -213,10 +215,12 @@ handlerRet ret h action
 -- `handlerLocal` :: a -> (h (`Local` a `:*` e) ans) -> `Eff` (h `:*` e) ans -> `Eff` e ans
 -- `handlerLocal` init h action = `local` init (`handlerHide` h action)
 -- @
+{-# INLINE handlerHide #-}
 handlerHide :: h (h' :* e) ans -> Eff (h :* e) ans -> Eff (h' :* e) ans
 handlerHide h action
   = Eff (\(CCons m' h' g' ctx') -> prompt (\m -> under (CCons m h (CTCons m' h' g') ctx') action))
 
+{-# INLINE handlerHideRetEff #-}
 handlerHideRetEff :: (ans -> Eff (h' :* e) b) -> h (h' :* e) b -> Eff (h :* e) ans -> Eff (h' :* e) b
 handlerHideRetEff ret h action
   = Eff (\ctx@(CCons m' h' g' ctx') -> do prompt (\m -> do x <- under (CCons m h (CTCons m' h' g') ctx') action
@@ -376,7 +380,7 @@ operation f = Op (\m ctx x -> yield m $ \ctlk ->
 -- | Create an operation that never resumes (an exception).
 -- (See `handlerRet` for an example).
 except :: (a -> Eff e ans) -> Op a b e ans
-except f = operation (\x _ -> f x)
+except f = Op (\m ctx x -> yield m $ \ctlk -> under ctx (f x))
 
 
 guard :: Context e -> Context e -> (b -> Ctl a) -> b -> Ctl a
@@ -398,7 +402,7 @@ newtype Local a e ans = Local (IORef a)
 -- | Get the value of the local state.
 {-# INLINE lget #-}
 lget :: Local a e ans -> Op () a e ans
-lget (Local r) = Op (\m ctx x -> unsafeIO (readIORef r))
+lget (Local r) = Op (\m ctx x -> unsafeIO (seq x $ readIORef r))
 
 -- | Set the value of the local state.
 {-# INLINE lput #-}
@@ -406,9 +410,9 @@ lput :: Local a e ans -> Op a () e ans
 lput (Local r) = Op (\m ctx x -> unsafeIO (writeIORef r x))
 
 -- | Update the value of the local state.
-{-# INLINE lupdate #-}
-lupdate :: Local a e ans -> Op (a -> a) () e ans
-lupdate (Local r) = Op (\m ctx f -> unsafeIO (do{ x <- readIORef r; writeIORef r (f x) }))
+{-# INLINE lmodify #-}
+lmodify :: Local a e ans -> Op (a -> a) () e ans
+lmodify (Local r) = Op (\m ctx f -> unsafeIO (do{ x <- readIORef r; writeIORef r $! (f x) }))
 
 -- | Get the value of the local state if it is the top handler.
 localGet :: Eff (Local a :* e) a
@@ -419,14 +423,15 @@ localPut :: a -> Eff (Local a :* e) ()
 localPut x = perform lput x
 
 -- | Update the value of the local state if it is the top handler.
-localUpdate :: (a -> a) -> Eff (Local a :* e) ()
-localUpdate f = perform lupdate f
+localModify :: (a -> a) -> Eff (Local a :* e) ()
+localModify f = perform lmodify f
 
 -- | Create a local state handler with an initial state of type @a@,
 -- with a return function to combine the final result with the final state to a value of type @b@.
+{-# INLINE localRet #-}
 localRet :: a -> (ans -> a -> b) -> Eff (Local a :* e) ans -> Eff e b
 localRet init ret action
-  = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
+  = Eff (\ctx -> unsafePromptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
                  do x <- under (CCons m (Local r) CTId ctx) action -- and call action with the extra evidence
                     y <- unsafeIO (readIORef r)
                     return (ret x y))

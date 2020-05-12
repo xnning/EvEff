@@ -24,7 +24,7 @@ module Control.Ev.Ctl(
 
           -- * Unsafe primitives for "Control.Ev.Eff"
           , unsafeIO     -- lift IO into Ctl        :: IO a -> Ctl a
-          , promptIORef
+          , unsafePromptIORef
           ) where
 
 import Prelude hiding (read,flip)
@@ -137,9 +137,8 @@ runCtl (Control _ _ _) = error "Unhandled operation"  -- only if marker escapes 
 
 
 -------------------------------------------------------
--- Optional: local state
+-- IORef's
 -------------------------------------------------------
-newtype Local a = Local (IORef a)
 
 -- | Unsafe `IO` in the `Ctl` monad.
 {-# INLINE unsafeIO #-}
@@ -159,8 +158,8 @@ mpromptIORef r action
 
 -- | Create an `IORef` connected to a prompt. The value of
 -- the `IORef` is saved and restored through resumptions.
-promptIORef :: a -> (Marker b -> IORef a -> Ctl b) -> Ctl b
-promptIORef init action
+unsafePromptIORef :: a -> (Marker b -> IORef a -> Ctl b) -> Ctl b
+unsafePromptIORef init action
   = freshMarker $ \m ->
     do r <- unsafeIO (newIORef init)
        mpromptIORef r (action m r)
