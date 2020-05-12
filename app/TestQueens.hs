@@ -80,56 +80,56 @@ queensMaybeEE n = EE.run (runChooseEE (queensCompEE n))
 -- EFF
 ------------------------
 
-data Choose e ans = Choose { choose :: forall b. Op [b] b e ans }
+data Choose e ans = Choose { none   :: forall a. Op () a e ans
+                           , choose :: Op Int Int e ans }
 
-failed :: (Choose :? e) => Eff e b
-failed = perform choose []
 
-queensComp :: (Choose :? e) => Int -> Eff e [Int]
-queensComp n = foldM f [] [1..n] where
-    f rows _ = do row <- perform choose [1..n]
+equeens :: (Choose :? e) => Int -> Eff e [Int]
+equeens n = foldM f [] [1..n] where
+    f rows _ = do row <- perform choose n
                   if (safeAddition rows row 1)
                     then return (row : rows)
-                    else failed
+                    else perform none ()
 
 maybeResult :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
 maybeResult
-  = handlerRet Just (Choose{ choose = operation $ \xs k ->
-    let firstJust ys = case ys of
-                         []      -> return Nothing
-                         (y:yy) -> do res <- k y
-                                      case res of
-                                        Nothing -> firstJust yy
-                                        _       -> return res
-    in firstJust xs })
+  = handlerRet Just $
+    Choose{ none   = except (\_ -> return Nothing)
+          , choose = operation (\hi k -> try k hi 1)
+          }
+  where try k hi n = if (n > hi) then return Nothing
+                      else do x <- k n
+                              case x of
+                                Nothing -> try k hi (n+1)
+                                _       -> return x
 
 queensMaybe :: Int -> Eff e (Maybe [Int])
-queensMaybe n = maybeResult $ queensComp n
+queensMaybe n = maybeResult $ equeens n
 
 
 ------------------------
 -- FIRST
 ------------------------
 
-newtype Stack e a = Stack ([Eff (Local (Stack e a) :* e) a])
+newtype Q e a = Q [Eff (Local (Q e a) :* e) (Maybe a)]
 
+firstResult :: Eff (Choose :* e) a -> Eff e (Maybe a)
+firstResult =  handlerLocalRet (Q []) (\x _ -> Just x) $
+               Choose{ none   = except (\_ -> step)
+                     , choose = operation (\hi k -> do (Q q) <- localGet
+                                                       localPut (Q (map k [1..hi] ++ q))
+                                                       step)
+                     }
 
-firstResult :: Eff (Choose :* e) ans -> Eff e ans -- Choose (State (Stack e ans) :* e) ans
-firstResult
-  = handlerLocal (Stack []) $
-    Choose { choose = operation (\xs k ->
-      case xs of
-        []     -> do (Stack stack) <- localGet
-                     case stack of
-                       []     -> error "no possible solutions"
-                       (z:zs) -> do localPut (Stack zs)
-                                    z
-        (y:ys) -> do localUpdate (\(Stack zs) -> Stack (map k ys ++ zs))
-                     k y
-   )}
+step :: Eff (Local (Q e a) :* e) (Maybe a)
+step     = do (Q q) <- localGet
+              case q of
+                (m:ms) -> do localPut (Q ms)
+                             m                             
+                []     -> return Nothing
 
-queensFirst :: Int -> Eff () [Int]
-queensFirst n = firstResult $ queensComp n
+queensFirst :: Int -> Eff () (Maybe [Int])
+queensFirst n = firstResult $ equeens n
 
 
 ------------------------
