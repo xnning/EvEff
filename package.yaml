@@ -66,6 +66,16 @@ executables:
     dependencies:
     - effev
 
+  TestError:
+    main:                TestError.hs
+    source-dirs:         app
+    ghc-options:
+    - -main-is TestError
+    - -O3
+    - -Wno-simplifiable-class-constraints
+    dependencies:
+    - effev
+
   ProfState:
     main:                TestState.hs
     source-dirs:         app
