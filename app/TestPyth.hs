@@ -103,10 +103,10 @@ epyth upbound = do
 makeChoiceA0 :: Eff (NDet :* e) a -> Eff e [a]
 makeChoiceA0 =  handlerRet (\x -> [x])
                    NDet{ zero = except (\_ -> return [])
-                       , pick = operation (\hi k -> let collect acc 0 = return (concat acc)
-                                                        collect acc n = do x <- k n
-                                                                           collect (x:acc) (n-1)
-                                                    in collect [] hi)
+                       , pick = operation (\hi k -> let collect 0 acc = return acc
+                                                        collect n acc = do xs <- k n
+                                                                           collect (n-1) $! (xs ++ acc)
+                                                    in collect hi [])
                        }
 
 
@@ -183,7 +183,7 @@ comp n = [ bench "pure"                    $ whnf pythPure n
          , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
          , bench "eff slow"  $ whnf pythEff n
-         --, bench "eff fast"  $ whnf pythEffFast n
+         -- , bench "eff fast"  $ whnf pythEffFast n
          ]
 
 num :: Int
