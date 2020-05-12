@@ -80,8 +80,8 @@ queensMaybeEE n = EE.run (runChooseEE (queensCompEE n))
 -- EFF
 ------------------------
 
-data Choose e ans = Choose { none   :: forall a. Op () a e ans
-                           , choose :: Op Int Int e ans }
+data Choose e ans = Choose { none   :: (forall a. Op () a e ans)
+                           , choose :: (Op Int Int e ans) }
 
 
 equeens :: (Choose :? e) => Int -> Eff e [Int]
@@ -91,20 +91,21 @@ equeens n = foldM f [] [1..n] where
                     then return (row : rows)
                     else perform none ()
 
-maybeResult :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
-maybeResult
+chooseFirst :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
+chooseFirst
   = handlerRet Just $
     Choose{ none   = except (\_ -> return Nothing)
-          , choose = operation (\hi k -> try k hi 1)
+          , choose = operation (\hi k -> let try n = if (n > hi) 
+                                                      then return Nothing
+                                                      else do x <- k n
+                                                              case x of
+                                                                Nothing -> try (n+1)
+                                                                _       -> return x
+                                         in try 1)
           }
-  where try k hi n = if (n > hi) then return Nothing
-                      else do x <- k n
-                              case x of
-                                Nothing -> try k hi (n+1)
-                                _       -> return x
 
 queensMaybe :: Int -> Eff e (Maybe [Int])
-queensMaybe n = maybeResult $ equeens n
+queensMaybe n = chooseFirst $ equeens n
 
 
 ------------------------
@@ -113,11 +114,11 @@ queensMaybe n = maybeResult $ equeens n
 
 newtype Q e a = Q [Eff (Local (Q e a) :* e) (Maybe a)]
 
-firstResult :: Eff (Choose :* e) a -> Eff e (Maybe a)
-firstResult =  handlerLocalRet (Q []) (\x _ -> Just x) $
+chooseFirstQ :: Eff (Choose :* e) a -> Eff e (Maybe a)
+chooseFirstQ =  handlerLocalRet (Q []) (\x _ -> Just x) $
                Choose{ none   = except (\_ -> step)
                      , choose = operation (\hi k -> do (Q q) <- localGet
-                                                       localPut (Q (map k [2..hi] ++ q))
+                                                       localPut (Q (map k [1..hi] ++ q))
                                                        step)
                      }
 
@@ -128,8 +129,8 @@ step     = do (Q q) <- localGet
                              m                             
                 []     -> return Nothing
 
-queensFirst :: Int -> Eff () (Maybe [Int])
-queensFirst n = firstResult $ equeens n
+queensMaybeQ :: Int -> Eff () (Maybe [Int])
+queensMaybeQ n = chooseFirstQ $ equeens n
 
 
 ------------------------
@@ -137,12 +138,12 @@ queensFirst n = firstResult $ equeens n
 
 pureTest       n = head $ queensPure n
 maybeTest      n = runEff $ queensMaybe n
-firstTest      n = runEff $ queensFirst n
+maybeQTest      n = runEff $ queensMaybeQ n
 maybeTestEE    n = queensMaybeEE n
 
 comp n = [ bench "monad"          $ whnf pureTest n
          , bench "effect maybe"   $ whnf maybeTest n
-         , bench "effect first "  $ whnf firstTest n
+         , bench "effect maybe queue "  $ whnf maybeQTest n
          , bench "ee maybe"       $ whnf maybeTestEE n
          ]
 

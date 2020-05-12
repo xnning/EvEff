@@ -88,8 +88,8 @@ pythEEFast n = length $
 -- EFF
 -------------------------------------------------------
 
-data NDet e ans = NDet { zero :: forall a. Op () a e ans
-                       , pick :: Op Int Int e ans }
+data NDet e ans = NDet { zero :: !(forall a. Op () a e ans)
+                       , pick :: !(Op Int Int e ans) }
 
 
 epyth :: (NDet :? e) => Int -> Eff e (Int, Int, Int)
@@ -103,11 +103,11 @@ epyth upbound = do
 makeChoiceA0 :: Eff (NDet :* e) a -> Eff e [a]
 makeChoiceA0 =  handlerRet (\x -> [x])
                    NDet{ zero = except (\_ -> return [])
-                       , pick = operation (\hi k -> loop k [] hi)
+                       , pick = operation (\hi k -> let collect acc 0 = return (concat acc)
+                                                        collect acc n = do x <- k n
+                                                                           collect (x:acc) (n-1)
+                                                    in collect [] hi)
                        }
-             where loop k acc 0 = return (concat acc)
-                   loop k acc n = do x <- k n
-                                     loop k (x:acc) (n-1)
 
 
 
@@ -154,7 +154,7 @@ newtype Q e a = Q [Eff (Local (Q e a) :* e) [a]]
 
 makeChoiceA :: Eff (NDet :* e) a -> Eff e [a]
 makeChoiceA =  handlerLocalRet (Q []) (\x _ -> [x]) $
-               NDet{ zero = except (\_ -> step)
+               NDet{ zero = operation (\_ _ -> step)
                    , pick = operation (\hi k -> do (Q q) <- localGet
                                                    localPut (Q (map k [1..hi] ++ q))
                                                    step)
@@ -180,11 +180,11 @@ pythEffFast n = length $
 -------------------------------------------------------
 
 comp n = [ bench "pure"                    $ whnf pythPure n
-         , bench "monadic"                 $ whnf pythMonadic n
-         , bench "extensible effects slow" $ whnf pythEESlow n
+         --, bench "monadic"                 $ whnf pythMonadic n
+         --, bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
          , bench "eff slow"  $ whnf pythEff n
-         -- , bench "eff fast"  $ whnf pythEffFast n
+         --, bench "eff fast"  $ whnf pythEffFast n
          ]
 
 num :: Int
