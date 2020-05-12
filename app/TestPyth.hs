@@ -31,6 +31,17 @@ pyth20 =
    (12,9,15),(12,16,20),(15,8,17),(16,12,20)]
 
 -------------------------------------------------------
+-- PURE
+-------------------------------------------------------
+
+pythPure upbound = length $
+  [ (x, y, z) | x <- [1..upbound]
+              , y <- [1..upbound]
+              , z <- [1..upbound]
+              , x*x + y*y == z*z
+              ]
+
+-------------------------------------------------------
 -- MONADIC
 -------------------------------------------------------
 
@@ -168,7 +179,8 @@ pythEffFast n = length $
 -- TEST
 -------------------------------------------------------
 
-comp n = [ bench "monadic"            $ whnf pythMonadic n
+comp n = [ bench "pure"                    $ whnf pythPure n
+         , bench "monadic"                 $ whnf pythMonadic n
          , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
          , bench "eff slow"  $ whnf pythEff n
