@@ -131,7 +131,7 @@ data Context e where
 -- `CCons` versions of the function as that allows the compiler to optimize
 -- much better for the cases where the function is known.
 data ContextT e e' where
-  CTCons :: Marker ans -> h e' ans -> !(ContextT e e') -> ContextT e (h :* e)
+  CTCons :: !(Marker ans) -> !(h e' ans) -> !(ContextT e e') -> ContextT e (h :* e)
   CTId   :: ContextT e e
   -- CTFun :: !(Context e -> Context e') -> ContextT e e'
 
@@ -153,11 +153,9 @@ ctail (CCons _ _ _ ctx)   = ctx
 -- | The effect monad in an effect context @e@ with result @a@
 newtype Eff e a = Eff (Context e -> Ctl a)
 
-{-# INLINE lift #-}
 lift :: Ctl a -> Eff e a
 lift ctl = Eff (\_ -> ctl)
 
-{-# INLINE under #-}
 under :: Context e -> Eff e a -> Ctl a
 under ctx (Eff eff)  = eff ctx
 
@@ -342,7 +340,6 @@ perform selectOp x
 
 -- | Create an operation that always resumes with a constant value (of type @a@).
 -- (see also the `perform` example).
-{-# INLINE value #-}
 value :: a -> Op () a e ans
 value x = function (\() -> return x)
 
@@ -350,7 +347,6 @@ value x = function (\() -> return x)
 -- These are called /tail-resumptive/ operations and are implemented more efficient than
 -- general operations as they can execute /in-place/ (instead of yielding to the handler).
 -- Most operations are tail-resumptive. (See also the `handlerLocal` example).
-{-# INLINE function #-}
 function :: (a -> Eff e b) -> Op a b e ans
 function f = Op (\_ ctx x -> under ctx (f x))
 
@@ -428,7 +424,6 @@ localUpdate f = perform lupdate f
 
 -- | Create a local state handler with an initial state of type @a@,
 -- with a return function to combine the final result with the final state to a value of type @b@.
-{-# INLINE localRet #-}
 localRet :: a -> (ans -> a -> b) -> Eff (Local a :* e) ans -> Eff e b
 localRet init ret action
   = Eff (\ctx -> promptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
