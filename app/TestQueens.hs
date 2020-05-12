@@ -117,7 +117,7 @@ firstResult :: Eff (Choose :* e) a -> Eff e (Maybe a)
 firstResult =  handlerLocalRet (Q []) (\x _ -> Just x) $
                Choose{ none   = except (\_ -> step)
                      , choose = operation (\hi k -> do (Q q) <- localGet
-                                                       localPut (Q (map k [1..hi] ++ q))
+                                                       localPut (Q (map k [2..hi] ++ q))
                                                        step)
                      }
 
