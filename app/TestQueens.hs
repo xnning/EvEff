@@ -141,7 +141,7 @@ maybeTest      n = runEff $ queensMaybe n
 maybeQTest      n = runEff $ queensMaybeQ n
 maybeTestEE    n = queensMaybeEE n
 
-comp n = [ bench "monad"          $ whnf pureTest n
+comp n = [ bench "pure"          $ whnf pureTest n
          , bench "effect maybe"   $ whnf maybeTest n
          , bench "effect maybe queue "  $ whnf maybeQTest n
          , bench "ee maybe"       $ whnf maybeTestEE n

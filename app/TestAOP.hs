@@ -292,9 +292,9 @@ makeGroup n =
      return $ [ bgroup (show n)  [ bench "monad"     $ whnf last (testEvalMonad e)
                                  , bench "mixin"     $ whnf last (testEvalMixin e)
                                  , bench "extensible" $ whnf last (testEvalEE e)
-                                 -- , bench "algebraic linear" $ whnf last (testEvalEffL e)
-                                 , bench "algebraic" $ whnf last (testEvalEff e)
-                                 , bench "algebraic non tail" $ whnf last (testEvalEffNonTail e)
+                                 -- , bench "eff linear" $ whnf last (testEvalEffL e)
+                                 , bench "eff"          $ whnf last (testEvalEff e)
+                                 , bench "eff non tail" $ whnf last (testEvalEffNonTail e)
                                  ]
               ]
 
