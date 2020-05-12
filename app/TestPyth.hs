@@ -25,6 +25,7 @@ import qualified Control.Eff.Reader.Lazy as EEr
 import qualified Control.Eff.Logic.NDet as EEn
 
 import Control.Ev.Eff
+import Control.Ev.Util
 
 pyth20 =
   [(3,4,5),(4,3,5),(5,12,13),(6,8,10),(8,6,10),(8,15,17),(9,12,15),(12,5,13),
@@ -88,31 +89,15 @@ pythEEFast n = length $
 -- EFF
 -------------------------------------------------------
 
-data NDet e ans = NDet { zero :: !(forall a. Op () a e ans)
-                       , pick :: !(Op Int Int e ans) }
-
-
-epyth :: (NDet :? e) => Int -> Eff e (Int, Int, Int)
+epyth :: (Choose :? e) => Int -> Eff e (Int, Int, Int)
 epyth upbound = do
-  x <- perform pick upbound
-  y <- perform pick upbound
-  z <- perform pick upbound
-  if (x*x + y*y == z*z) then return (x,y,z) else perform zero ()
-
--- slow version
-makeChoiceA0 :: Eff (NDet :* e) a -> Eff e [a]
-makeChoiceA0 =  handlerRet (\x -> [x])
-                   NDet{ zero = except (\_ -> return [])
-                       , pick = operation (\hi k -> let collect 0 acc = return acc
-                                                        collect n acc = do xs <- k n
-                                                                           collect (n-1) $! (xs ++ acc)
-                                                    in collect hi [])
-                       }
-
-
+  x <- perform choose upbound
+  y <- perform choose upbound
+  z <- perform choose upbound
+  if (x*x + y*y == z*z) then return (x,y,z) else perform none ()
 
 runPythEff :: Int -> ([(Int,Int,Int)])
-runPythEff n = runEff $ makeChoiceA0 $ epyth n
+runPythEff n = runEff $ chooseAll $ epyth n
 
 testEff = pyth20 == (runPythEff 20)
 
@@ -152,17 +137,17 @@ pythEff n = length $
 
 newtype Q e a = Q [Eff (Local (Q e a) :* e) [a]]
 
-makeChoiceA :: Eff (NDet :* e) a -> Eff e [a]
-makeChoiceA =  handlerLocalRet (Q []) (\x _ -> [x]) $
-               NDet{ zero = except (\x -> do (Q q) <- localGet
-                                             case q of
-                                               (m:ms) -> do localPut (Q ms)
-                                                            m                                                            
-                                               []     -> return [])
-                   , pick = operation (\hi k -> do (Q q) <- localGet
-                                                   localPut (Q (map k [1..hi] ++ q))
-                                                   steps)
-                   }
+chooseAllQ :: Eff (Choose :* e) a -> Eff e [a]
+chooseAllQ =   handlerLocalRet (Q []) (\x _ -> [x]) $
+               Choose{ none = except (\x -> do (Q q) <- localGet
+                                               case q of
+                                                 (m:ms) -> do localPut (Q ms)
+                                                              m                                                            
+                                                 []     -> return [])
+                     , choose = operation (\hi k -> do (Q q) <- localGet
+                                                       localPut (Q (map k [1..hi] ++ q))
+                                                       steps)
+                     }
 
 steps :: Eff (Local (Q e a) :* e) [a]
 steps  = do (Q q) <- localGet
@@ -173,10 +158,10 @@ steps  = do (Q q) <- localGet
                            return (xs ++ ys)
               []     -> return []
 
-testEffQ = pyth20 == ((runEff $ makeChoiceA $ epyth 20) :: [(Int,Int,Int)])
+testEffQ = pyth20 == ((runEff $ chooseAllQ $ epyth 20) :: [(Int,Int,Int)])
 
 pythEffQ n = length $
-                ((runEff $ makeChoiceA $ epyth n) :: [(Int,Int,Int)])
+                ((runEff $ chooseAllQ $ epyth n) :: [(Int,Int,Int)])
 
 
 -------------------------------------------------------
@@ -185,7 +170,7 @@ pythEffQ n = length $
 
 comp n = [ bench "pure"                    $ whnf pythPure n
          , bench "monadic"                 $ whnf pythMonadic n
-         , bench "extensible effects slow" $ whnf pythEESlow n
+         -- , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
          , bench "eff"  $ whnf pythEff n
          , bench "eff queue"  $ whnf pythEffQ n

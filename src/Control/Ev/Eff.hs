@@ -6,6 +6,7 @@
               UndecidableInstances,     -- InEq (HEqual h h') h h' e => ... (duplicate instance variable)
               GADTs,
               MultiParamTypeClasses,
+              FunctionalDependencies,
               Rank2Types
 #-}
 {-|
@@ -253,10 +254,10 @@ type h :? e = In h e   -- is `h` in the effect context `e` ?
 data SubContext h  = forall e. SubContext !(Context (h :* e))  -- make `e` existential
 
 -- | The @In@ constraint is an alias for `:?`
-class In h e where
+class In h e where -- | e -> h 
   subContext :: Context e -> SubContext h  -- ^ Internal method to select a sub context
 
-instance (InEq (HEqual h h') h h' w) => In h (h' :* w)  where
+instance (InEq (HEqual h h') h h' w) => In h (h' :* w) where
   subContext = subContextEq
 
 
@@ -265,7 +266,7 @@ type family HEqual (h :: * -> * -> *) (h' :: * -> * -> *) :: Bool where
   HEqual h h' = 'False
 
 -- | Internal class used by `:?`.
-class (iseq ~ HEqual h h') => InEq iseq h h' e  where
+class (iseq ~ HEqual h h') => InEq iseq h h' e where  -- | e h' -> h 
   subContextEq :: Context (h' :* e) -> SubContext h
 
 instance (h ~ h') => InEq 'True h h' e where

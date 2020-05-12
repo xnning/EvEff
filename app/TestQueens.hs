@@ -80,29 +80,12 @@ queensMaybeEE n = EE.run (runChooseEE (queensCompEE n))
 -- EFF
 ------------------------
 
-data Choose e ans = Choose { none   :: (forall a. Op () a e ans)
-                           , choose :: (Op Int Int e ans) }
-
-
 equeens :: (Choose :? e) => Int -> Eff e [Int]
 equeens n = foldM f [] [1..n] where
     f rows _ = do row <- perform choose n
                   if (safeAddition rows row 1)
                     then return (row : rows)
                     else perform none ()
-
-chooseFirst :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
-chooseFirst
-  = handlerRet Just $
-    Choose{ none   = except (\_ -> return Nothing)
-          , choose = operation (\hi k -> let try n = if (n > hi) 
-                                                      then return Nothing
-                                                      else do x <- k n
-                                                              case x of
-                                                                Nothing -> try (n+1)
-                                                                _       -> return x
-                                         in try 1)
-          }
 
 queensMaybe :: Int -> Eff e (Maybe [Int])
 queensMaybe n = chooseFirst $ equeens n
