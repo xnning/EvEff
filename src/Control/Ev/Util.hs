@@ -128,7 +128,7 @@ exceptMaybe
 -- | Choose implements backtracking.
 data Choose e ans = Choose { none   :: !(forall a. Op () a e ans)  -- ^ @`perform none ()` indicates no result
                            , choose :: !(Op Int Int e ans)         -- ^ @`perform` choose n` resumes up to @n@ times (returning @1@ up to @n@)
-                           }    
+                           }
 
 
 -- | Return the first result found in a computation using `choose` for backtracking.
@@ -136,7 +136,7 @@ chooseFirst :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
 chooseFirst
   = handlerRet Just $
     Choose{ none   = except (\_ -> return Nothing)
-          , choose = operation (\hi k -> let try n = if (n > hi) 
+          , choose = operation (\hi k -> let try n = if (n > hi)
                                                       then return Nothing
                                                       else do x <- k n
                                                               case x of
@@ -147,7 +147,7 @@ chooseFirst
 
 -- | Return all possible results found in a computation using `choose` for backtracking
 chooseAll :: Eff (Choose :* e) a -> Eff e [a]
-chooseAll 
+chooseAll
   = handlerRet (\x -> [x]) $
     Choose{ none   = except (\_ -> return [])
           , choose = operation (\hi k -> let collect 0 acc = return acc

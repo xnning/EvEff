@@ -109,10 +109,10 @@ step :: Eff (Local (Q e a) :* e) (Maybe a)
 step     = do (Q q) <- localGet
               case q of
                 (m:ms) -> do localPut (Q ms)
-                             m                             
+                             m
                 []     -> return Nothing
 
-queensMaybeQ :: Int -> Eff () (Maybe [Int])
+queensMaybeQ :: Int -> Eff e (Maybe [Int])
 queensMaybeQ n = chooseFirstQ $ equeens n
 
 
@@ -125,12 +125,16 @@ maybeQTest      n = runEff $ queensMaybeQ n
 maybeTestEE    n = queensMaybeEE n
 
 comp n = [ bench "pure"          $ whnf pureTest n
+         , bench "ee maybe"       $ whnf maybeTestEE n
          , bench "effect maybe"   $ whnf maybeTest n
          , bench "effect maybe queue "  $ whnf maybeQTest n
-         , bench "ee maybe"       $ whnf maybeTestEE n
          ]
 
+-- It returns Nothing. That's why it is so fast.
+-- There is still something wrong.
+main = putStr $ show $ maybeQTest 20
 
-main :: IO ()
-main = defaultMain
-       [ bgroup "20" (comp 20) ]
+
+-- main :: IO ()
+-- main = defaultMain
+--        [ bgroup "20" (comp 20) ]

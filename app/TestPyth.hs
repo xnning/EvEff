@@ -20,8 +20,6 @@ import GHC.Base hiding (mapM)
 
 -- Extensible Effects
 import qualified Control.Eff as EE
-import qualified Control.Eff.State.Lazy as EEs
-import qualified Control.Eff.Reader.Lazy as EEr
 import qualified Control.Eff.Logic.NDet as EEn
 
 import Control.Ev.Eff
@@ -85,9 +83,6 @@ pythEEFast n = length $
 -------------------------------------------------------
 -- EFF
 -------------------------------------------------------
--------------------------------------------------------
--- EFF
--------------------------------------------------------
 
 epyth :: (Choose :? e) => Int -> Eff e (Int, Int, Int)
 epyth upbound = do
@@ -142,7 +137,7 @@ chooseAllQ =   handlerLocalRet (Q []) (\x _ -> [x]) $
                Choose{ none = except (\x -> do (Q q) <- localGet
                                                case q of
                                                  (m:ms) -> do localPut (Q ms)
-                                                              m                                                            
+                                                              m
                                                  []     -> return [])
                      , choose = operation (\hi k -> do (Q q) <- localGet
                                                        localPut (Q (map k [1..hi] ++ q))

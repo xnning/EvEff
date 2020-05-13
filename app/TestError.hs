@@ -13,31 +13,31 @@ import qualified Control.Eff.Exception as EEe
 import Control.Ev.Eff
 import qualified Control.Ev.Util as E
 
-be_make_list :: Int -> [Int]
-be_make_list n = replicate n 1 ++ [0]
+list :: Int -> [Int]
+list n = replicate n 1 ++ [0]
 
-errorPure n = product $ be_make_list n
+errorPure n = product $ list n
 
 errorMonadic :: Int -> Int
 errorMonadic n = either id id m
  where
- m = foldM f 1 (be_make_list n)
+ m = foldM f 1 (list n)
  f acc 0 = Me.throwError 0
- f acc x = return $! acc * x
+ f acc x = return $ acc * x
 
 errorEE :: Int -> Int
 errorEE n = either id id . EE.run . EEe.runError $ m
  where
- m = foldM f 1 (be_make_list n)
+ m = foldM f 1 (list n)
  f acc 0 = EEe.throwError (0::Int)
- f acc x = return $! acc * x
+ f acc x = return $ acc * x
 
 errorEff :: Int -> Int
 errorEff n = either id id . runEff . E.exceptEither $ m
  where
- m = foldM f 1 (be_make_list n)
+ m = foldM f 1 (list n)
  f acc 0 = perform E.throwError (0::Int)
- f acc x = return $! acc * x
+ f acc x = return $ acc * x
 
 ppure     n = bench "pure"                    $ whnf errorPure    n
 monadic   n = bench "monadic"                 $ whnf errorMonadic n
