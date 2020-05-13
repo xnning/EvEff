@@ -590,7 +590,16 @@ layerUnderEffL4 n = runEff $
 -- TEST
 -------------------------------------------------------
 
-comp n = [ bench "monadic 0"          $ whnf layerMonadic n
+quick = False
+
+comp n = if (quick) then
+         [ bench "monadic 0"            $ whnf layerMonadic n
+         , bench "eff 0"                $ whnf layerEff n
+         , bench "fused effects 0"      $ whnf layerF n
+         , bench "extensible effects 0" $ whnf layerEE n
+         ]
+         else 
+         [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "monadic over 1"     $ whnf layerOverMonadic1 n
          , bench "monadic over 2"     $ whnf layerOverMonadic2 n
          , bench "monadic over 3"     $ whnf layerOverMonadic3 n
