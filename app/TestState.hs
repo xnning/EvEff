@@ -18,6 +18,10 @@ import qualified Control.Monad.State as Ms
 import qualified Control.Eff as EE
 import qualified Control.Eff.State.Strict as EEs
 
+-- Fused Effects
+import qualified Control.Algebra as F
+import qualified Control.Carrier.State.Strict as Fs
+
 import Control.Ev.Eff
 import Control.Ev.Util
 
@@ -67,6 +71,18 @@ countEE = do n <- EEs.get
                       countEE
 
 runEE n = EEs.runState n countEE
+
+-------------------------------------------------------
+-- FUSED EFFECTS
+-------------------------------------------------------
+
+countF :: (F.Has (Fs.State Int) sig m ) => m Int
+countF = do n <- Fs.get
+            if n == 0 then return n
+            else do Fs.put (n - 1)
+                    countF
+
+runCountF n = F.run $ Fs.runState n countF
 
 -------------------------------------------------------
 -- Eff local tail
@@ -150,6 +166,7 @@ effLoc    n = bench "eff local"            $ whnf countTail n
 effLocNt  n = bench "eff local non tail"   $ whnf countNonTail n
 effBuiltin n = bench "eff local builtin"    $ whnf countBuiltin n
 -- effLinear  n = bench "eff local linear"     $ whnf countLinear n
+fe        n  = bench "fused effects"        $ whnf runCountF n
 
 comp n  = [ ppure n
           , monadic n
@@ -160,6 +177,7 @@ comp n  = [ ppure n
           , effLoc n
           , effLocNt n
           , effFun n
+          , fe n
           ]
 
 iterExp = 7

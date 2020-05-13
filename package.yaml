@@ -31,6 +31,7 @@ dependencies:
 - containers
 - mtl
 - extensible-effects
+- fused-effects
 
 library:
   source-dirs: src
