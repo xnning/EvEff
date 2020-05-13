@@ -6,24 +6,31 @@
 module TestAOP where
 
 import Prelude hiding (log, exp)
+import Data.Map hiding (lookup,map)
+
+import System.Random
+import Criterion.Main
+import Criterion.Types
+
+
+-- Mtl
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Monad.Identity
 import Control.Applicative hiding (empty)
 import Control.Monad.Except
-import Data.Map hiding (lookup,map)
-
-
-import System.Random
-import Criterion.Main
-import Criterion.Types
 
 -- Extensible Effects
 import qualified Control.Eff as EE
 import qualified Control.Eff.State.Strict as EEs
 import qualified Control.Eff.Writer.Strict as EEw
 
+-- Fused Effects
+import qualified Control.Algebra as F
+import qualified Control.Carrier.State.Strict as Fs
+import qualified Control.Carrier.Writer.Strict as Fw
 
+-- Eff
 import Control.Ev.Eff
 import qualified Control.Ev.Util as E
 
@@ -127,8 +134,9 @@ compMixin = new (dump <@> log "eval"  <@> evalMixin)
 testEvalMixin e = evalState (execWriterT (compMixin e)) []
 
 ---------------------------------------------------------
--- Extensible
+-- Extensible Effects
 ---------------------------------------------------------
+
 evalEE :: (EE.Member (EEs.State Env) r, EE.Member (EEw.Writer String) r) => Expr -> EE.Eff r Int
 evalEE exp =
   do (s::Env) <- EEs.get
@@ -163,7 +171,44 @@ testEvalEE :: Expr -> String -- ((Int,Env),String
 testEvalEE e = snd (EE.run $ EEw.runMonoidWriter (EEs.runState ([]::Env) (evalEE e)))
 
 ---------------------------------------------------------
--- ALGEBRAIC
+-- Extensible
+---------------------------------------------------------
+
+evalF :: (F.Has (Fs.State Env) sig m, F.Has (Fw.Writer String) sig m) => Expr -> m Int
+evalF exp =
+  do (s::Env) <- Fs.get
+     --tell (show s ++ "\n")
+     --tell ("Entering eval with " ++ show exp ++ "\n")
+     Fw.tell ("enter: " ++ show (length s))
+     result <-
+       case exp of
+         Lit x             -> return x
+         Var s             -> do  e <- Fs.get
+                                  case lookup s e of
+                                    Just x  -> return x
+                                    _       -> error "Variable not found!"
+         Plus l r          -> do  x <- evalF l
+                                  y <- evalF r
+                                  return (x*y)
+         Assign x r        -> do  y <- evalF r
+                                  e <- Fs.get
+                                  Fs.put ((x,y):e)
+                                  return y
+         Sequence []       -> return 0
+         Sequence [x]      -> evalF x
+         Sequence (x:xs)   -> evalF x >> evalF (Sequence xs)
+         While c b         -> do  x <- evalF c
+                                  if (x == 0) then return 0
+                                    else (evalF b >> evalF exp)
+     -- tell ("Exiting eval with " ++ show result ++ "\n")
+     Fw.tell "exit"
+     return result
+
+testEvalF :: Expr -> String -- (String, (Env, Int))
+testEvalF e = fst (F.run $ Fw.runWriter (Fs.runState ([]::Env) (evalF e)))
+
+---------------------------------------------------------
+-- Eff
 ---------------------------------------------------------
 
 evalEff ::  (E.Writer String :? e, (E.State Env) :? e) => Expr -> Eff e Int
@@ -292,6 +337,7 @@ makeGroup n =
      return $ [ bgroup (show n)  [ bench "monad"     $ whnf last (testEvalMonad e)
                                  , bench "mixin"     $ whnf last (testEvalMixin e)
                                  , bench "extensible" $ whnf last (testEvalEE e)
+                                 , bench "fused"      $ whnf last (testEvalF e)
                                  -- , bench "eff linear" $ whnf last (testEvalEffL e)
                                  , bench "eff"          $ whnf last (testEvalEff e)
                                  , bench "eff non tail" $ whnf last (testEvalEffNonTail e)
