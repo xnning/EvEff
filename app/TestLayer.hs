@@ -66,7 +66,7 @@ layerOverMonadic5 n =
   flip Mr.runReaderT "0" $
   flip Mr.runReaderT 'c' $
   Ms.runStateT (monadic n) 0
-  
+
 layerOverMonadic6 n =
   flip Mr.runReader (0::Int) $
   flip Mr.runReaderT (0::Integer) $
@@ -112,7 +112,7 @@ layerUnderMonadic5 n =
      flip Mr.runReaderT "0" $
      flip Mr.runReaderT 'c' $
       monadic n
-      
+
 layerUnderMonadic6 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
@@ -168,7 +168,7 @@ layerOverEE5 n = EE.run $
   EEr.runReader "0" $
   EEr.runReader 'c' $
     EEs.runState (0::Integer) (ee n)
-    
+
 layerOverEE6 n = EE.run $
   EEr.runReader (0::Int) $
   EEr.runReader (0::Integer) $
@@ -176,7 +176,7 @@ layerOverEE6 n = EE.run $
   EEr.runReader "0" $
   EEr.runReader 'c' $
   EEr.runReader (True,True) $
-    EEs.runState (0::Integer) (ee n)    
+    EEs.runState (0::Integer) (ee n)
 -- LAYER UNDER
 
 layerUnderEE1 n = EE.run $
@@ -213,7 +213,7 @@ layerUnderEE5 n = EE.run $
     EEr.runReader "0" $
     EEr.runReader 'c' $
     ee n
-    
+
 layerUnderEE6 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
@@ -273,7 +273,7 @@ layerOverEff6 n = runEff $
   reader True $
   reader "0" $
   reader 'c' $
-  reader (True,True) $  
+  reader (True,True) $
     state (0::Integer) (eff n)
 
 
@@ -353,7 +353,7 @@ layerOverEffNonTail4 n = runEff $
   reader True $
   reader "0" $
     stateNonTail (0::Integer) (eff n)
-    
+
 layerOverEffNonTail5 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
@@ -367,9 +367,9 @@ layerOverEffNonTail6 n = runEff $
   reader True $
   reader "0" $
   reader 'c' $
-  reader (True,True) $  
+  reader (True,True) $
     stateNonTail (0::Integer) (eff n)
-    
+
 
 layerUnderEffNonTail1 n = runEff $
   stateNonTail (0::Integer) $
@@ -509,7 +509,7 @@ comp n = [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "extensible effects under 4"    $ whnf layerUnderEE4 n
          , bench "extensible effects under 5"    $ whnf layerUnderEE5 n
          , bench "extensible effects under 6"    $ whnf layerUnderEE6 n
-         
+
 {-
          , bench "eff linear 0"          $ whnf layerEffL n
          , bench "eff linear over 1"     $ whnf layerOverEffL1 n
