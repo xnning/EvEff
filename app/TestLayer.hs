@@ -5,8 +5,13 @@
 #-}
 module TestLayer where
 
+import Data.List
 import Criterion.Main
 import Criterion.Types
+
+-- runST
+import Control.Monad.ST
+import Data.STRef
 
 -- MTL
 import Control.Monad (foldM)
@@ -27,6 +32,31 @@ import qualified Control.Carrier.Reader as Fr
 import Control.Ev.Eff
 import Control.Ev.Util
 
+-------------------------------------------------------
+-- Pure
+-------------------------------------------------------
+
+layerPure :: Integer -> Integer
+layerPure n = fst (foldl' f (1,0) [n, n-1 .. 0])
+  where f (acc,st) x | x `mod` 5 == 0 = let st' = st+1 in seq st' (max acc x, st')
+        f (acc,st) x = (max acc x, st)
+
+-------------------------------------------------------
+-- Pure
+-------------------------------------------------------
+
+countST :: STRef s Integer -> Integer -> ST s Integer
+countST r n = foldM f 1 [n, n-1 .. 0]
+  where f acc x | x `mod` 5 == 0 = do n <- readSTRef r
+                                      writeSTRef r (n+1)
+                                      return (max acc x)
+        f acc x = return (max acc x)
+
+layerST :: Integer -> Integer
+layerST n
+  = runST (do r <- newSTRef (0::Integer)
+              countST r n)
+              
 -------------------------------------------------------
 -- MONADIC
 -------------------------------------------------------
@@ -590,10 +620,12 @@ layerUnderEffL4 n = runEff $
 -- TEST
 -------------------------------------------------------
 
-quick = False
+quick = True
 
 comp n = if (quick) then
-         [ bench "monadic 0"            $ whnf layerMonadic n
+         [ bench "pure 0"            $ whnf layerPure n
+         , bench "runST 0"            $ whnf layerST n
+         , bench "monadic 0"            $ whnf layerMonadic n
          , bench "eff 0"                $ whnf layerEff n
          , bench "fused effects 0"      $ whnf layerF n
          , bench "extensible effects 0" $ whnf layerEE n
