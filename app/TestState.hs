@@ -5,13 +5,14 @@
 #-}
 module TestState where
 
+import Criterion.Main
+import Criterion.Types
+
+-- runST
 import Control.Monad.ST
 import Data.STRef
 
-import Criterion.Main
-import Criterion.Types
--- import Library hiding (main)
-
+-- MTL
 import qualified Control.Monad.State as Ms
 
 -- Extensible Effects
@@ -22,6 +23,7 @@ import qualified Control.Eff.State.Strict as EEs
 import qualified Control.Algebra as F
 import qualified Control.Carrier.State.Strict as Fs
 
+-- Eff
 import Control.Ev.Eff
 import Control.Ev.Util
 
