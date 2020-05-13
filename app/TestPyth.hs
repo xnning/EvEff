@@ -20,6 +20,7 @@ import GHC.Base hiding (mapM)
 
 -- Extensible Effects
 import qualified Control.Eff as EE
+import qualified Control.Eff.State.Strict as EEs
 import qualified Control.Eff.Logic.NDet as EEn
 
 import Control.Ev.Eff
@@ -32,6 +33,9 @@ pyth20 =
 -------------------------------------------------------
 -- PURE
 -------------------------------------------------------
+
+res :: ([(Int, Int, Int)], Int) -> Int
+res x = length (fst x)
 
 pythPure upbound = length $
   [ (x, y, z) | x <- [1..upbound]
@@ -68,6 +72,18 @@ testMonadic = pyth20 == ((runCont (pyth 20) (\x -> [x])) :: [(Int,Int,Int)])
 
 pythMonadic n = length $ ((runCont (pyth n) (\x -> [x])) :: [(Int,Int,Int)])
 
+pythState :: Int -> ContT [r] (Ms.State Int) (Int, Int, Int)
+pythState upbound = do
+  x <- stream 1 upbound
+  y <- stream 1 upbound
+  z <- stream 1 upbound
+  cnt <- Ms.get
+  Ms.put $ (cnt + 1)
+  if x*x + y*y == z*z then return (x,y,z) else mzero
+
+pythMonadicState :: Int -> Int
+pythMonadicState n = res $ Ms.runState (runContT (pythState n) (\x -> return [x])) 0
+
 -------------------------------------------------------
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
@@ -79,6 +95,22 @@ pythEESlow n = length $
 
 pythEEFast n = length $
             ((EE.run . EEn.makeChoiceA $ pyth n) :: [(Int,Int,Int)])
+
+pythStateE :: (EE.Member (EEs.State Int) r, EE.Member EEn.NDet r) =>
+          Int -> EE.Eff r (Int, Int, Int)
+pythStateE upbound = do
+  x <- stream 1 upbound
+  y <- stream 1 upbound
+  z <- stream 1 upbound
+  cnt <- EEs.get
+  EEs.put $ (cnt + 1 ::Int)
+  if x*x + y*y == z*z then return (x,y,z) else mzero
+
+pythEEStateSlow :: Int -> Int
+pythEEStateSlow n = res $ EE.run $ EEs.runState 0 (EEn.makeChoiceA0 $ pythStateE n)
+
+pythEEStateFast :: Int -> Int
+pythEEStateFast n = res $ EE.run $ EEs.runState 0 (EEn.makeChoiceA $ pythStateE n)
 
 -------------------------------------------------------
 -- EFF
@@ -97,6 +129,18 @@ runPythEff n = runEff $ chooseAll $ epyth n
 testEff = pyth20 == (runPythEff 20)
 
 pythEff n = length $ (runPythEff n)
+
+epythState :: (Choose :? e, State Int :? e) => Int -> Eff e (Int, Int, Int)
+epythState upbound = do
+  x <- perform choose upbound
+  y <- perform choose upbound
+  z <- perform choose upbound
+  cnt <- perform get ()
+  perform put (cnt + 1 :: Int)
+  if (x*x + y*y == z*z) then return (x,y,z) else perform none ()
+
+pythEffState :: Int -> Int
+pythEffState n = length $ runEff $ state (0::Int) $ chooseAll $ epythState n
 
 {-
 data NDet e ans = NDet { zero :: forall a. Op () a e ans
@@ -168,7 +212,13 @@ comp n = [ bench "pure"                    $ whnf pythPure n
          -- , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
          , bench "eff"  $ whnf pythEff n
-         , bench "eff queue"  $ whnf pythEffQ n
+         -- , bench "eff queue"  $ whnf pythEffQ n
+
+         -- with state
+         , bench "state monadic"                 $ whnf pythMonadicState n
+         -- , bench "extensible effects slow" $ whnf pythEESlow n
+         , bench "state extensible effects fast" $ whnf pythEEStateFast n
+         , bench "state eff"                     $ whnf pythEffState n
          ]
 
 num :: Int
