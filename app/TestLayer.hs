@@ -7,9 +7,8 @@ module TestLayer where
 
 import Criterion.Main
 import Criterion.Types
-import Control.Ev.Eff
-import Control.Ev.Util
 
+-- MTL
 import Control.Monad (foldM)
 import qualified Control.Monad.State as Ms
 import qualified Control.Monad.Reader as Mr
@@ -18,6 +17,15 @@ import qualified Control.Monad.Reader as Mr
 import qualified Control.Eff as EE
 import qualified Control.Eff.State.Lazy as EEs
 import qualified Control.Eff.Reader.Lazy as EEr
+
+-- Fused Effects
+import qualified Control.Algebra as F
+import qualified Control.Carrier.State.Lazy as Fs
+import qualified Control.Carrier.Reader as Fr
+
+-- Eff
+import Control.Ev.Eff
+import Control.Ev.Util
 
 -------------------------------------------------------
 -- MONADIC
@@ -223,6 +231,106 @@ layerUnderEE6 n = EE.run $
     EEr.runReader 'c' $
     EEr.runReader (True,True) $
     ee n
+
+-------------------------------------------------------
+-- Fused Effects
+-------------------------------------------------------
+
+fe :: (F.Has (Fs.State Integer) sig m) => Integer -> m Integer
+fe n = foldM f 1 [n, n-1 .. 0]
+  where f acc x | x `mod` 5 == 0 = do n <- Fs.get
+                                      Fs.put (n+1)
+                                      return (max acc x)
+        f acc x = return (max acc x)
+
+layerF n = F.run $
+    Fs.runState (0::Integer) (fe n)
+
+layerOverF1 n = F.run $
+  Fr.runReader (0::Int) $
+    Fs.runState (0::Integer) (fe n)
+
+layerOverF2 n = F.run $
+  Fr.runReader (0::Int) $
+  Fr.runReader (0::Integer) $
+    Fs.runState (0::Integer) (fe n)
+
+layerOverF3 n = F.run $
+  Fr.runReader (0::Int) $
+  Fr.runReader (0::Integer) $
+  Fr.runReader True $
+    Fs.runState (0::Integer) (fe n)
+
+layerOverF4 n = F.run $
+  Fr.runReader (0::Int) $
+  Fr.runReader (0::Integer) $
+  Fr.runReader True $
+  Fr.runReader "0" $
+    Fs.runState (0::Integer) (fe n)
+
+layerOverF5 n = F.run $
+  Fr.runReader (0::Int) $
+  Fr.runReader (0::Integer) $
+  Fr.runReader True $
+  Fr.runReader "0" $
+  Fr.runReader 'c' $
+    Fs.runState (0::Integer) (fe n)
+
+layerOverF6 n = F.run $
+  Fr.runReader (0::Int) $
+  Fr.runReader (0::Integer) $
+  Fr.runReader True $
+  Fr.runReader "0" $
+  Fr.runReader 'c' $
+  Fr.runReader (True,True) $
+    Fs.runState (0::Integer) (fe n)
+
+-- LAYER UNDER
+
+layerUnderF1 n = F.run $
+  Fs.runState (0::Integer) $
+    Fr.runReader (0::Int) $
+    fe n
+
+layerUnderF2 n = F.run $
+  Fs.runState (0::Integer) $
+    Fr.runReader (0::Int) $
+    Fr.runReader (0::Integer) $
+    fe n
+
+layerUnderF3 n = F.run $
+  Fs.runState (0::Integer) $
+    Fr.runReader (0::Int) $
+    Fr.runReader (0::Integer) $
+    Fr.runReader True $
+    fe n
+
+layerUnderF4 n = F.run $
+  Fs.runState (0::Integer) $
+    Fr.runReader (0::Int) $
+    Fr.runReader (0::Integer) $
+    Fr.runReader True $
+    Fr.runReader "0" $
+    fe n
+
+layerUnderF5 n = F.run $
+  Fs.runState (0::Integer) $
+    Fr.runReader (0::Int) $
+    Fr.runReader (0::Integer) $
+    Fr.runReader True $
+    Fr.runReader "0" $
+    Fr.runReader 'c' $
+    fe n
+
+layerUnderF6 n = F.run $
+  Fs.runState (0::Integer) $
+    Fr.runReader (0::Int) $
+    Fr.runReader (0::Integer) $
+    Fr.runReader True $
+    Fr.runReader "0" $
+    Fr.runReader 'c' $
+    Fr.runReader (True,True) $
+    fe n
 
 -------------------------------------------------------
 -- EFF
@@ -509,6 +617,20 @@ comp n = [ bench "monadic 0"          $ whnf layerMonadic n
          , bench "extensible effects under 4"    $ whnf layerUnderEE4 n
          , bench "extensible effects under 5"    $ whnf layerUnderEE5 n
          , bench "extensible effects under 6"    $ whnf layerUnderEE6 n
+
+         , bench "fused effects 0"          $ whnf layerF n
+         , bench "fused effects over 1"     $ whnf layerOverF1 n
+         , bench "fused effects over 2"     $ whnf layerOverF2 n
+         , bench "fused effects over 3"     $ whnf layerOverF3 n
+         , bench "fused effects over 4"     $ whnf layerOverF4 n
+         , bench "fused effects over 5"     $ whnf layerOverF5 n
+         , bench "fused effects over 6"     $ whnf layerOverF6 n
+         , bench "fused effects under 1"    $ whnf layerUnderF1 n
+         , bench "fused effects under 2"    $ whnf layerUnderF2 n
+         , bench "fused effects under 3"    $ whnf layerUnderF3 n
+         , bench "fused effects under 4"    $ whnf layerUnderF4 n
+         , bench "fused effects under 5"    $ whnf layerUnderF5 n
+         , bench "fused effects under 6"    $ whnf layerUnderF6 n
 
 {-
          , bench "eff linear 0"          $ whnf layerEffL n
