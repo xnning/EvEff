@@ -10,19 +10,27 @@ module TestPyth where
 
 import Criterion.Main
 import Criterion.Types
--- import Library hiding (main)
 
+import GHC.Base hiding (mapM)
 import Control.Monad (foldM)
+
+-- Mtl
 import qualified Control.Monad.State as Ms hiding (mapM)
 import qualified Control.Monad.Reader as Mr hiding (mapM)
 import Control.Monad.Cont as Mc hiding (mapM)
-import GHC.Base hiding (mapM)
 
 -- Extensible Effects
 import qualified Control.Eff as EE
 import qualified Control.Eff.State.Strict as EEs
 import qualified Control.Eff.Logic.NDet as EEn
 
+-- Fused Effects
+import qualified Control.Algebra as F
+import qualified Control.Carrier.State.Strict as Fs
+import qualified Control.Carrier.NonDet.Church as Fnc
+import qualified Control.Effect.NonDet as Fn
+
+-- Eff
 import Control.Ev.Eff
 import Control.Ev.Util
 
@@ -111,6 +119,35 @@ pythEEStateSlow n = res $ EE.run $ EEs.runState 0 (EEn.makeChoiceA0 $ pythStateE
 
 pythEEStateFast :: Int -> Int
 pythEEStateFast n = res $ EE.run $ EEs.runState 0 (EEn.makeChoiceA $ pythStateE n)
+
+-------------------------------------------------------
+-- Fused Effects
+-------------------------------------------------------
+
+
+pythF :: (MonadPlus m, F.Has Fn.NonDet sig m) => Int -> m (Int, Int, Int)
+pythF upbound = do
+  x <- Fn.oneOf [1..upbound]
+  y <- Fn.oneOf [1..upbound]
+  z <- Fn.oneOf [1..upbound]
+  if x*x + y*y == z*z then return (x,y,z) else mzero
+
+testPythF = pyth20 == (Fnc.runNonDet (++) (\x -> [x]) [] (pythF 20) )
+
+runPythF n = length (Fnc.runNonDet (++) (\x -> [x]) [] (pythF n) )
+
+pythStateF :: (MonadPlus m, F.Has (Fs.State Int) sig m, F.Has Fn.NonDet sig m) =>
+          Int -> m (Int, Int, Int)
+pythStateF upbound = do
+  x <- Fn.oneOf [1..upbound]
+  y <- Fn.oneOf [1..upbound]
+  z <- Fn.oneOf [1..upbound]
+  cnt <- Fs.get
+  Fs.put $ (cnt + 1 ::Int)
+  if x*x + y*y == z*z then return (x,y,z) else mzero
+
+runPythStateF n = length $ snd $
+  F.run (Fs.runState (0::Int) (Fnc.runNonDet (liftM2 (++)) (pure . pure) (return []) (pythStateF n) ))
 
 -------------------------------------------------------
 -- EFF
@@ -211,13 +248,15 @@ comp n = [ bench "pure"                    $ whnf pythPure n
          , bench "monadic"                 $ whnf pythMonadic n
          -- , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
-         , bench "eff"  $ whnf pythEff n
+         , bench "fused effects"           $ whnf runPythF n
+         , bench "eff"                     $ whnf pythEff n
          -- , bench "eff queue"  $ whnf pythEffQ n
 
          -- with state
          , bench "state monadic"                 $ whnf pythMonadicState n
          -- , bench "extensible effects slow" $ whnf pythEESlow n
          , bench "state extensible effects fast" $ whnf pythEEStateFast n
+         , bench "fused effects"                 $ whnf runPythStateF n
          , bench "state eff"                     $ whnf pythEffState n
          ]
 
