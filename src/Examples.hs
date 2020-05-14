@@ -100,9 +100,22 @@ data State a e ans = State { get :: Op () a e ans
 -- BEGIN:statex
 state :: a -> Eff (State a :* e) ans -> Eff e ans  
 state init = handlerLocal init $
-             State{ get = function (\() -> localGet)
-                  , put = function (\x  -> localPut x) }
+             State{ get = function (\ () -> perform lget ())
+                  , put = function (\ x  -> perform lput x) }
 -- END:statex
+
+-- BEGIN:statemon
+local :: a -> Eff (Local a :* e) ans -> Eff e ans  
+local init action
+  = do f <- handler (Local { lget = operation (\ () k -> return $ 
+                                                         \s -> do{ r <- k s; r s } )
+                           , lput = operation (\ s k -> return $ 
+                                                         \_ -> do{ r <- k (); r s } )
+                           })
+                    (do x <- action
+                        return (\s -> return x))
+       f init
+-- END:statemon
 
 -- BEGIN:stateex
 add :: (State Int :? e) => Int -> Eff e ()  
@@ -157,11 +170,11 @@ xor = do x <- perform flip ()
 
 -- BEGIN:allresults
 allResults :: Eff (Amb :* e) a -> Eff e [a]  
-allResults = handlerRet (\x -> [x]) Amb{
+allResults = handlerRet (\x -> [x]) (Amb{
   flip = operation (\ () k ->
             do xs <- k True
                ys <- k False
-               return (xs ++ ys)) }
+               return (xs ++ ys)) })
 -- END:allresults
 
 -- BEGIN:backtrack
@@ -222,7 +235,7 @@ parse input
 -- END:parsefun
 
 -- BEGIN:symbol
-symbol :: Parse :? e => Char -> Eff e Char
+symbol :: Parse :? e => Char -> Eff e Char  
 symbol c = perform satisfy (\input -> case input of
     (d:rest) | d == c -> Just (c, rest)
     _ -> Nothing)
