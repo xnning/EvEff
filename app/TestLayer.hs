@@ -630,11 +630,12 @@ quick = False
 comp n = if (quick) then
          [ bench "pure 0"               $ whnf layerPure n
          , bench "foldl' 0"             $ whnf layerFold n
-         , bench "runST 0"              $ whnf layerST n
          , bench "monadic 0"            $ whnf layerMonadic n
-         , bench "eff 0"                $ whnf layerEff n
-         , bench "fused effects 0"      $ whnf layerF n
+         , bench "runST 0"              $ whnf layerST n
          , bench "extensible effects 0" $ whnf layerEE n
+         , bench "fused effects 0"      $ whnf layerF n
+         , bench "eff nontail 0"          $ whnf layerEffNonTail n
+         , bench "eff 0"                $ whnf layerEff n
          ]
          else 
          [ bench "monadic 0"          $ whnf layerMonadic n

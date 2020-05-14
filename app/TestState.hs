@@ -183,9 +183,9 @@ comp n  = [ ppure n
           , ee n
           , fe n          
           , effBuiltin n
-          , effLoc n
           , effLocNt n
           , effFun n          
+          , effLoc n
           ]
 
 iterExp = 7
