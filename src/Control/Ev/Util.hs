@@ -88,8 +88,8 @@ data Writer a e ans = Writer { tell :: !(Op a () e ans) -- ^ Output a value of t
 {-# INLINE writer #-}
 writer :: (Monoid a) => Eff (Writer a :* e) ans -> Eff e (ans,a)
 writer
-  = handlerLocalRet [] (\x xs -> (x,mconcat (reverse xs))) $
-    Writer{ tell = function (\x -> do{ xs <- localGet; localPut (x:xs); return () }) }
+  = handlerLocalRet mempty (,) $
+    Writer{ tell = function (\x -> do{ xs <- localGet; localPut (mappend xs x); return () }) }
 
 
 ------------

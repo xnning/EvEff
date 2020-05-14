@@ -36,19 +36,6 @@ runPure n = if n == 0 then n
             else runPure (n-1)
 
 
-countST :: STRef s Int -> ST s Int
-countST r
-  = do i <- readSTRef r
-       if (i==0) then return i
-        else do writeSTRef r (i-1)
-                countST r
-
-
-runCountST :: Int -> Int
-runCountST n
-  = runST $ do r <- newSTRef n
-               countST r
-
 -------------------------------------------------------
 -- MONADIC
 -------------------------------------------------------
@@ -62,6 +49,25 @@ countMonadic =
 
 runMonadic = Ms.runState countMonadic
 
+
+-------------------------------------------------------
+-- ST
+-------------------------------------------------------
+
+countST :: STRef s Int -> ST s Int
+countST r
+  = do i <- readSTRef r
+       if (i==0) then return i
+        else do writeSTRef r (i-1)
+                countST r
+
+
+runCountST :: Int -> Int
+runCountST n
+  = runST $ do r <- newSTRef n
+               countST r
+
+
 -------------------------------------------------------
 -- EXTENSIBLE EFFECTS
 -------------------------------------------------------
@@ -73,18 +79,6 @@ countEE = do n <- EEs.get
                       countEE
 
 runEE n = EEs.runState n countEE
-
--------------------------------------------------------
--- FUSED EFFECTS
--------------------------------------------------------
-
-countF :: (F.Has (Fs.State Int) sig m ) => m Int
-countF = do n <- Fs.get
-            if n == 0 then return n
-            else do Fs.put (n - 1)
-                    countF
-
-runCountF n = F.run $ Fs.runState n countF
 
 -------------------------------------------------------
 -- Eff local tail
@@ -154,6 +148,20 @@ countLinear :: Int -> Int
 countLinear n
   = runEff $ lstate n $ runCountLinear
 -}
+
+
+-------------------------------------------------------
+-- FUSED EFFECTS
+-------------------------------------------------------
+
+countF :: (F.Has (Fs.State Int) sig m ) => m Int
+countF = do n <- Fs.get
+            if n == 0 then return n
+            else do Fs.put (n - 1)
+                    countF
+
+runCountF n = F.run $ Fs.runState n countF
+
 -------------------------------------------------------
 -- TESTS
 -------------------------------------------------------
@@ -164,22 +172,20 @@ ee        n = bench "extensible effects "     $ whnf runEE n
 st        n = bench "runST"   $ whnf runCountST n
 
 effFun    n = bench "eff functional state" $ whnf countFun n
-effLoc    n = bench "eff local"            $ whnf countTail n
-effLocNt  n = bench "eff local non tail"   $ whnf countNonTail n
-effBuiltin n = bench "eff local builtin"    $ whnf countBuiltin n
--- effLinear  n = bench "eff local linear"     $ whnf countLinear n
+effLoc    n = bench "eff"            $ whnf countTail n
+effLocNt  n = bench "eff non tail"   $ whnf countNonTail n
+effBuiltin n = bench "eff builtin"    $ whnf countBuiltin n
 fe        n  = bench "fused effects"        $ whnf runCountF n
 
 comp n  = [ ppure n
           , monadic n
           , st n
           , ee n
+          , fe n          
           , effBuiltin n
---          , effLinear n
           , effLoc n
           , effLocNt n
-          , effFun n
-          , fe n
+          , effFun n          
           ]
 
 iterExp = 7

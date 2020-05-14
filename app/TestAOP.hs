@@ -60,7 +60,7 @@ evalMonad exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalMonad l
                                   y <- evalMonad r
-                                  return (x*y)
+                                  return (x+y)
          Assign x r        -> do  y <- evalMonad r
                                   e <- get
                                   put ((x,y):e)
@@ -101,7 +101,7 @@ evalMixin this exp = case exp of
                              _       -> error msg
   Plus l r          -> do  x <- this l
                            y <- this r
-                           return (x*y)
+                           return (x+y)
   Assign x r        -> do  y <- this r
                            e <- get
                            put ((x,y):e)
@@ -152,7 +152,7 @@ evalEE exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalEE l
                                   y <- evalEE r
-                                  return (x*y)
+                                  return (x+y)
          Assign x r        -> do  y <- evalEE r
                                   e <- EEs.get
                                   EEs.put ((x,y):e)
@@ -189,7 +189,7 @@ evalF exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalF l
                                   y <- evalF r
-                                  return (x*y)
+                                  return (x+y)
          Assign x r        -> do  y <- evalF r
                                   e <- Fs.get
                                   Fs.put ((x,y):e)
@@ -226,7 +226,7 @@ evalEff exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalEff l
                                   y <- evalEff r
-                                  return (x*y)
+                                  return (x+y)
          Assign x r        -> do  y <- evalEff r
                                   e <- perform E.get ()
                                   perform E.put ((x,y):e)
@@ -285,7 +285,7 @@ evalEffL exp =
                                     _       -> error "Variable not found!"
          Plus l r          -> do  x <- evalEffL l
                                   y <- evalEffL r
-                                  return (x*y)
+                                  return (x+y)
          Assign x r        -> do  y <- evalEffL r
                                   e <- lperform E.get ()
                                   lperform E.put ((x,y):e)
@@ -323,13 +323,13 @@ randomBool = getStdRandom random
 -- Plus nodes and Lit leaves.
 randomExpr :: Int -> IO Expr
 randomExpr 1 = do i <- getStdRandom (randomR(1, n-1))
-                  if (i`mod`2 == 0) then return (Var "x")
+                  if (i`mod`3 == 0) then return (Var "x")
                      else (do n <- randomLit
                               return $ Lit n)
 randomExpr n = do i <- getStdRandom (randomR(1, n-1))
                   l <- randomExpr i
                   r <- randomExpr (n-i)
-                  return $ if (i`mod`5 == 0) then Sequence [Assign "x" l, r] else Plus l r
+                  return $ if (i`mod`10 == 0) then Sequence [Assign "x" l, r] else Plus l r
 
 makeGroup n =
   do e0 <- randomExpr n
@@ -345,7 +345,7 @@ makeGroup n =
               ]
 
 seed = 42
-n = 10::Int
+n = 12::Int
 
 main = do setStdGen (mkStdGen seed);
           e <- makeGroup (2^n)
