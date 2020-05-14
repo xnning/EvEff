@@ -625,7 +625,7 @@ layerUnderEffL4 n = runEff $
 -- TEST
 -------------------------------------------------------
 
-quick = True
+quick = False
 
 comp n = if (quick) then
          [ bench "pure 0"               $ whnf layerPure n
