@@ -690,6 +690,20 @@ comp n = if (quick) then
          , bench "eff linear under 2"    $ whnf layerUnderEffL2 n
          , bench "eff linear under 3"    $ whnf layerUnderEffL3 n
          , bench "eff linear under 4"    $ whnf layerUnderEffL4 n
+
+         , bench "eff nontail 0"          $ whnf layerEffNonTail n
+         , bench "eff nontail over 1"     $ whnf layerOverEffNonTail1 n
+         , bench "eff nontail over 2"     $ whnf layerOverEffNonTail2 n
+         , bench "eff nontail over 3"     $ whnf layerOverEffNonTail3 n
+         , bench "eff nontail over 4"     $ whnf layerOverEffNonTail4 n
+         , bench "eff nontail over 5"     $ whnf layerOverEffNonTail5 n
+         , bench "eff nontail over 6"     $ whnf layerOverEffNonTail6 n
+         , bench "eff nontail under 1"    $ whnf layerUnderEffNonTail1 n
+         , bench "eff nontail under 2"    $ whnf layerUnderEffNonTail2 n
+         , bench "eff nontail under 3"    $ whnf layerUnderEffNonTail3 n
+         , bench "eff nontail under 4"    $ whnf layerUnderEffNonTail4 n
+         , bench "eff nontail under 5"    $ whnf layerUnderEffNonTail5 n
+         , bench "eff nontail under 6"    $ whnf layerUnderEffNonTail6 n
 -}
 
          , bench "eff 0"          $ whnf layerEff n
@@ -706,19 +720,6 @@ comp n = if (quick) then
          , bench "eff under 5"    $ whnf layerUnderEff6 n
          , bench "eff under 6"    $ whnf layerUnderEff6 n
 
-         , bench "eff nontail 0"          $ whnf layerEffNonTail n
-         , bench "eff nontail over 1"     $ whnf layerOverEffNonTail1 n
-         , bench "eff nontail over 2"     $ whnf layerOverEffNonTail2 n
-         , bench "eff nontail over 3"     $ whnf layerOverEffNonTail3 n
-         , bench "eff nontail over 4"     $ whnf layerOverEffNonTail4 n
-         , bench "eff nontail over 5"     $ whnf layerOverEffNonTail5 n
-         , bench "eff nontail over 6"     $ whnf layerOverEffNonTail6 n
-         , bench "eff nontail under 1"    $ whnf layerUnderEffNonTail1 n
-         , bench "eff nontail under 2"    $ whnf layerUnderEffNonTail2 n
-         , bench "eff nontail under 3"    $ whnf layerUnderEffNonTail3 n
-         , bench "eff nontail under 4"    $ whnf layerUnderEffNonTail4 n
-         , bench "eff nontail under 5"    $ whnf layerUnderEffNonTail5 n
-         , bench "eff nontail under 6"    $ whnf layerUnderEffNonTail6 n
          ]
 
 num :: Integer
