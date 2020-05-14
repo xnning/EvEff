@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs,                       -- match on Refl for type equality
-             ExistentialQuantification    -- forall b ans. Control ...
+             ExistentialQuantification    -- forall b ans. Yield ...
 #-}
 {-|
 Description : Internal module for type-safe multi-prompt control
@@ -17,14 +17,14 @@ module Control.Ev.Ctl(
           , markerEq     -- :: Marker a -> Marker b -> Bool
 
           -- * Control monad
-          , Ctl(Pure)    -- control monad
-          , runCtl       -- run the control monad   :: Ctl a -> a
-          , prompt       -- install prompt          :: Marker a -> Ctl a -> Ctl a
-          , yield        -- yield to a prompt       :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
+          , Ctl(Pure)    -- multi-prompt control monad
+          , runCtl       -- run the control monad       :: Ctl a -> a
+          , prompt       -- install a multi-prompt      :: (Marker a -> Ctl a) -> Ctl a
+          , yield        -- yield to a specific prompt  :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
 
           -- * Unsafe primitives for "Control.Ev.Eff"
-          , unsafeIO     -- lift IO into Ctl        :: IO a -> Ctl a
-          , unsafePromptIORef
+          , unsafeIO            -- lift IO into Ctl        :: IO a -> Ctl a
+          , unsafePromptIORef   -- IORef that gets restored per resumption
           ) where
 
 import Prelude hiding (read,flip)
@@ -40,7 +40,7 @@ import Unsafe.Coerce    ( unsafeCoerce )
 import System.IO.Unsafe ( unsafePerformIO )
 import Data.IORef
 
--- | An abstract  control marker
+-- | An abstract prompt marker
 data Marker a = Marker !Integer
 
 instance Show (Marker a) where
@@ -73,33 +73,34 @@ freshMarker f
 
 
 {-|  The Multi Prompt control monad,
-where `ans` is the answer type, i.e. the type of the handler/prompt context,
-and `b` the result type of the operation
+with existentials `ans` and `b`: where `ans` is the answer type, i.e. the type of the handler/prompt context,
+and `b` the result type of the operation.
 -}
 data Ctl a = Pure { result :: !a }  -- ^ Pure results (only exported for use in the "Control.Ev.Eff" module)
            | forall ans b.
-             Control{ marker :: !(Marker ans),                 -- ^ prompt marker to yield to (in type context `::ans`)
-                      op     :: !((b -> Ctl ans) -> Ctl ans),  -- ^ the final action, just needs the resumption (:: b -> Ctl ans) to be evaluated.
-                      cont   :: !(b -> Ctl a)                  -- ^ the (partially) build up resumption; `(b -> Ctl a) :~: (b -> Ctl ans)` by the time we reach the prompt
-                    }
+             Yield{ marker :: !(Marker ans),                 -- ^ prompt marker to yield to (in type context `::ans`)
+                    op     :: !((b -> Ctl ans) -> Ctl ans),  -- ^ the final action, just needs the resumption (:: b -> Ctl ans) to be evaluated.
+                    cont   :: !(b -> Ctl a)                  -- ^ the (partially) build up resumption; `(b -> Ctl a) :~: (b -> Ctl ans)` by the time we reach the prompt
+                  }
 
 -- | @yield m op@ yields to a specific marker and calls @op@ in that context
 -- with a /resumption/ @k :: b -> Ctl ans@ that resumes at the original call-site
--- with a result of type @b@.
+-- with a result of type @b@. If the marker is no longer in the evaluation context,
+-- (i.e. it escaped outside its prompt) the `yield` fails with an @"unhandled operation"@ error.
 {-# INLINE yield #-}
 yield :: Marker ans -> ((b -> Ctl ans) -> Ctl ans) -> Ctl b
-yield m op  = Control m op Pure
+yield m op  = Yield m op Pure
 
 {-# INLINE kcompose #-}
 kcompose :: (b -> Ctl c) -> (a -> Ctl b) -> a -> Ctl c      -- Kleisli composition
 kcompose g f x = case (f x) of
                    Pure x -> g x
-                   Control m op cont -> Control m op (g `kcompose` cont)
+                   Yield m op cont -> Yield m op (g `kcompose` cont)
 
 {-# INLINE bind #-}
 bind :: Ctl a -> (a -> Ctl b) -> Ctl b
-bind (Pure x) f             = f x
-bind (Control m op cont) f  = Control m op (f `kcompose` cont)  -- keep yielding with an extended continuation
+bind (Pure x) f           = f x
+bind (Yield m op cont) f  = Yield m op (f `kcompose` cont)  -- keep yielding with an extended continuation
 
 instance Functor Ctl where
   fmap  = liftM
@@ -111,29 +112,32 @@ instance Monad Ctl where
   e >>= f   = bind e f
 
 
--- use a prompt with a unique marker (and handle yields to it)
+-- install a prompt with a unique marker (and handle yields to it)
 {-# INLINE mprompt #-}
 mprompt :: Marker a -> Ctl a -> Ctl a
 mprompt m (Pure x) = Pure x
-mprompt m (Control n op cont)
+mprompt m (Yield n op cont)
   = let cont' x = mprompt m (cont x) in  -- extend the continuation with our own prompt
     case mmatch m n of
-      Nothing   -> Control n op cont'   -- keep yielding (but with the extended continuation)
-      Just Refl -> op cont'             -- found our prompt, invoke `op`.
-                   -- Note: `Refl` proves `a ~ ans` (the existential `ans` in Control)
+      Nothing   -> Yield n op cont'   -- keep yielding (but with the extended continuation)
+      Just Refl -> op cont'           -- found our prompt, invoke `op`.
+                   -- Note: `Refl` proves `a ~ ans` (the existential `ans` in Yield)
 
 -- | Install a /prompt/ with a specific prompt `Marker` to which one can `yield`.
--- This connects creation of a marker with instantiating the prompt.
+-- This connects creation of a marker with instantiating the prompt. The marker passed
+-- to the @action@ argument should not escape the @action@ (but this is not statically checked,
+-- only at runtime when `yield`ing to it).
 {-# INLINE prompt #-}
 prompt :: (Marker a -> Ctl a) -> Ctl a
 prompt action
-  = freshMarker $ \m ->  -- create a fresh marker
+  = freshMarker $ \m ->   -- create a fresh marker
     mprompt m (action m)  -- and install a prompt associated with this marker
 
--- | Run a control monad
+-- | Run a control monad. This may fail with an @"unhandled operation"@ error if 
+-- there is a `yield` to a marker that escaped its prompt scope.
 runCtl :: Ctl a -> a
-runCtl (Pure x) = x
-runCtl (Control _ _ _) = error "Unhandled operation"  -- only if marker escapes the scope of the prompt
+runCtl (Pure x)      = x
+runCtl (Yield _ _ _) = error "Unhandled operation"  -- only if marker escapes the scope of the prompt
 
 
 -------------------------------------------------------
@@ -150,11 +154,11 @@ mpromptIORef :: IORef a -> Ctl b -> Ctl b
 mpromptIORef r action
   = case action of
       Pure x -> pure x
-      Control m op cont
+      Yield m op cont
         -> do val <- unsafeIO (readIORef r)                 -- save current value on yielding
               let cont' x = do unsafeIO (writeIORef r val)  -- restore saved value on resume
                                mpromptIORef r (cont x)
-              Control m op cont'
+              Yield m op cont'
 
 -- | Create an `IORef` connected to a prompt. The value of
 -- the `IORef` is saved and restored through resumptions.
@@ -192,9 +196,9 @@ plocal local action
   = case action of
       Pure x -> do localOutOfScope local
                    pure x
-      Control m op cont
+      Yield m op cont
         -> do val <- localOutOfScope local            -- save current value
               let cont' x = do mlocalSet local val    -- restore saved value on resume
                                plocal local (cont x)
-              Control m op cont'
+              Yield m op cont'
 -}

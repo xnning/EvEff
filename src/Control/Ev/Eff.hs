@@ -53,9 +53,9 @@ module Control.Ev.Eff(
             , runEff          -- :: Eff () a -> a
 
             -- * Effect context
-            , (:?)            -- h :? e
-            , (:*)            -- h :* e
-            -- , In              -- alias for :?
+            , (:?)            -- h :? e,  is h in e?
+            , (:*)            -- h :* e,  cons h in front of e
+            -- , In           -- alias for :?
 
             -- * Perform and Handlers
             , perform         -- :: (h :? e) => (forall e' ans. h e' ans -> Op a b e' ans) -> a -> Eff e b
