@@ -246,7 +246,7 @@ pythEffQ n = length $
 
 comp n = [ bench "pure"                    $ whnf pythPure n
          , bench "monadic"                 $ whnf pythMonadic n
-         -- , bench "extensible effects slow" $ whnf pythEESlow n
+         , bench "extensible effects"      $ whnf pythEESlow n
          , bench "extensible effects fast" $ whnf pythEEFast n
          , bench "fused effects"           $ whnf runPythF n
          , bench "eff"                     $ whnf pythEff n
@@ -254,9 +254,9 @@ comp n = [ bench "pure"                    $ whnf pythPure n
 
          -- with state
          , bench "state monadic"                 $ whnf pythMonadicState n
-         -- , bench "extensible effects slow" $ whnf pythEESlow n
+         , bench "state extensible effects"      $ whnf pythEESlow n
          , bench "state extensible effects fast" $ whnf pythEEStateFast n
-         , bench "fused effects"                 $ whnf runPythStateF n
+         , bench "state fused effects"           $ whnf runPythStateF n
          , bench "state eff"                     $ whnf pythEffState n
          ]
 
