@@ -20,12 +20,12 @@ import qualified Control.Monad.Reader as Mr
 
 -- Extensible Effects
 import qualified Control.Eff as EE
-import qualified Control.Eff.State.Lazy as EEs
+import qualified Control.Eff.State.Strict as EEs
 import qualified Control.Eff.Reader.Lazy as EEr
 
 -- Fused Effects
 import qualified Control.Algebra as F
-import qualified Control.Carrier.State.Lazy as Fs
+import qualified Control.Carrier.State.Strict as Fs
 import qualified Control.Carrier.Reader as Fr
 
 -- Eff
@@ -37,7 +37,12 @@ import Control.Ev.Util
 -------------------------------------------------------
 
 layerPure :: Integer -> Integer
-layerPure n = fst (foldl' f (1,0) [n, n-1 .. 0])
+layerPure n =  (foldl' f 1 [n, n-1 .. 0])
+  where f acc x | x `mod` 5 == 0 = (max acc x)
+        f acc x = (max acc x)
+
+layerFold :: Integer -> Integer
+layerFold n = fst (foldl' f (1,0) [n, n-1 .. 0])
   where f (acc,st) x | x `mod` 5 == 0 = let st' = st+1 in seq st' (max acc x, st')
         f (acc,st) x = (max acc x, st)
 
@@ -48,7 +53,7 @@ layerPure n = fst (foldl' f (1,0) [n, n-1 .. 0])
 countST :: STRef s Integer -> Integer -> ST s Integer
 countST r n = foldM f 1 [n, n-1 .. 0]
   where f acc x | x `mod` 5 == 0 = do n <- readSTRef r
-                                      writeSTRef r (n+1)
+                                      writeSTRef r $! (n+1)
                                       return (max acc x)
         f acc x = return (max acc x)
 
@@ -623,8 +628,9 @@ layerUnderEffL4 n = runEff $
 quick = True
 
 comp n = if (quick) then
-         [ bench "pure 0"            $ whnf layerPure n
-         , bench "runST 0"            $ whnf layerST n
+         [ bench "pure 0"               $ whnf layerPure n
+         , bench "foldl' 0"             $ whnf layerFold n
+         , bench "runST 0"              $ whnf layerST n
          , bench "monadic 0"            $ whnf layerMonadic n
          , bench "eff 0"                $ whnf layerEff n
          , bench "fused effects 0"      $ whnf layerF n
