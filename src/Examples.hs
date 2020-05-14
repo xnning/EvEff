@@ -170,11 +170,11 @@ xor = do x <- perform flip ()
 
 -- BEGIN:allresults
 allResults :: Eff (Amb :* e) a -> Eff e [a]  
-allResults = handlerRet (\x -> [x]) Amb{
+allResults = handlerRet (\x -> [x]) (Amb{
   flip = operation (\ () k ->
             do xs <- k True
                ys <- k False
-               return (xs ++ ys)) }
+               return (xs ++ ys)) })
 -- END:allresults
 
 -- BEGIN:backtrack
@@ -235,7 +235,7 @@ parse input
 -- END:parsefun
 
 -- BEGIN:symbol
-symbol :: Parse :? e => Char -> Eff e Char
+symbol :: Parse :? e => Char -> Eff e Char  
 symbol c = perform satisfy (\input -> case input of
     (d:rest) | d == c -> Just (c, rest)
     _ -> Nothing)
