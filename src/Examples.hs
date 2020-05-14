@@ -65,15 +65,13 @@ data Exn e ans
 -- BEGIN:toMaybe
 toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)    
 toMaybe action
-  = handler (Exn{ failure = operation (\ () _ -> return Nothing) }) $
-    do x <- action
-       return (Just x)
+  = handlerRet Just (Exn{ failure = operation (\ () _ -> return Nothing) })
 -- END:toMaybe
 
 -- BEGIN:exceptDefault
 exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a  
-exceptDefault x = handler Exn{
-  failure = operation (\ () _ -> return x) }
+exceptDefault x 
+  = handler (Exn{ failure = operation (\ () _ -> return x) })
 -- END:exceptDefault
 
 -- BEGIN:exnex
