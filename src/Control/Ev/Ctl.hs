@@ -115,7 +115,7 @@ instance Monad Ctl where
 -- install a prompt with a unique marker (and handle yields to it)
 {-# INLINE mprompt #-}
 mprompt :: Marker a -> Ctl a -> Ctl a
-mprompt m (Pure x) = Pure x
+mprompt m p@(Pure _) = p
 mprompt m (Yield n op cont)
   = let cont' x = mprompt m (cont x) in  -- extend the continuation with our own prompt
     case mmatch m n of
@@ -153,7 +153,7 @@ unsafeIO io = let x = unsafeInlinePrim io in seq x (Pure x)
 mpromptIORef :: IORef a -> Ctl b -> Ctl b
 mpromptIORef r action
   = case action of
-      Pure x -> pure x
+      p@(Pure _) -> p
       Yield m op cont
         -> do val <- unsafeIO (readIORef r)                 -- save current value on yielding
               let cont' x = do unsafeIO (writeIORef r val)  -- restore saved value on resume

@@ -64,8 +64,8 @@ data Exn e ans
 
 -- BEGIN:toMaybe
 toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)    
-toMaybe action
-  = handlerRet Just (Exn{ failure = operation (\ () _ -> return Nothing) })
+toMaybe
+  = handlerRet (Just) (Exn{ failure = operation (\ () _ -> return Nothing) })
 -- END:toMaybe
 
 -- BEGIN:exceptDefault
