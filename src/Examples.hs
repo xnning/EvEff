@@ -105,7 +105,7 @@ state init
   = handlerLocal init $
     State{ get = function (\ () -> perform lget ())
          , put = function (\ x  -> perform lput x) }
--- END:statex
+-- END:statex 
 
 -- BEGIN:statemon
 local :: a -> Eff (Local a :* e) ans -> Eff e ans  
