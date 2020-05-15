@@ -65,13 +65,15 @@ data Exn e ans
 -- BEGIN:toMaybe
 toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)    
 toMaybe
-  = handlerRet (Just) (Exn{ failure = operation (\ () _ -> return Nothing) })
+  = handlerRet (Just) $ Exn{ 
+      failure = operation (\ () _ -> return Nothing) }
 -- END:toMaybe
 
 -- BEGIN:exceptDefault
 exceptDefault :: a -> Eff (Exn :* e) a -> Eff e a  
 exceptDefault x 
-  = handler (Exn{ failure = operation (\ () _ -> return x) })
+  = handler $ 
+    Exn{ failure = operation (\ () _ -> return x) }
 -- END:exceptDefault
 
 -- BEGIN:exnex
@@ -99,21 +101,23 @@ data State a e ans = State { get :: Op () a e ans
 
 -- BEGIN:statex
 state :: a -> Eff (State a :* e) ans -> Eff e ans  
-state init = handlerLocal init $
-             State{ get = function (\ () -> perform lget ())
-                  , put = function (\ x  -> perform lput x) }
+state init 
+  = handlerLocal init $
+    State{ get = function (\ () -> perform lget ())
+         , put = function (\ x  -> perform lput x) }
 -- END:statex
 
 -- BEGIN:statemon
 local :: a -> Eff (Local a :* e) ans -> Eff e ans  
 local init action
-  = do f <- handler (Local { lget = operation (\ () k -> return $ 
-                                                         \s -> do{ r <- k s; r s } )
-                           , lput = operation (\ s k -> return $ 
-                                                         \_ -> do{ r <- k (); r s } )
-                           })
-                    (do x <- action
-                        return (\s -> return x))
+  = do f <- handler (Local  
+               lget = operation (\ () k -> return $
+                      \s -> do{ r <- k s; r s } )
+              ,lput = operation (\ s k -> return $ 
+                      \_ -> do{ r <- k (); r s } )
+            })
+            (do x <- action
+                return (\s -> return x))
        f init
 -- END:statemon
 
