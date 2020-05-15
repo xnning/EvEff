@@ -30,8 +30,8 @@ sample1 = reader "world" $
 -- END:readerex1
 
 -- BEGIN:readermult
-greetOrExit::(Reader String :? e, Reader Bool :? e)  
-   => Eff e String
+greetOrExit::(Reader String :? e, Reader Bool :? e)
+                => Eff e String  
 greetOrExit
   = do s <- perform ask ()
        isExit <- perform ask ()
