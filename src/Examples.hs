@@ -63,7 +63,7 @@ data Exn e ans
 -- END:exn
 
 -- BEGIN:toMaybe
-toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)    
+toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)  
 toMaybe
   = handlerRet (Just) $ Exn{ 
       failure = operation (\ () _ -> return Nothing) }
@@ -182,8 +182,8 @@ allResults = handlerRet (\x -> [x]) (Amb{
 -- END:allresults
 
 -- BEGIN:backtrack
-firstResult :: Eff (Amb :* e) (Maybe a)   
-  -> Eff e (Maybe a)
+firstResult :: Eff (Amb :* e) (Maybe a) ->
+                 Eff e (Maybe a)  
 firstResult = handler Amb{
   flip = operation (\ () k ->
            do xs <- k True
