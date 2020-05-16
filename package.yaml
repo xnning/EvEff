@@ -36,7 +36,7 @@ dependencies:
 library:
   source-dirs: src
   ghc-options:
-    - -O2 -fspec-constr-keen -fregs-graph
+    - -O2 -fspec-constr-keen
   
 executables:
   TestAOP:
@@ -64,7 +64,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestState
-    - -O2 -fspec-constr-keen -fregs-graph
+    - -O2
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
@@ -74,7 +74,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestError
-    - -O2 -fspecialise-aggressively
+    - -O2 
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
