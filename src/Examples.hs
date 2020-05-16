@@ -107,20 +107,6 @@ state init
          , put = function (\ x  -> perform lput x) }
 -- END:statex 
 
--- BEGIN:statemon
-local :: a -> Eff (Local a :* e) ans -> Eff e ans  
-local init action
-  = do f <- handler (Local  
-               lget = operation (\ () k -> return $
-                      \s -> do{ r <- k s; r s } )
-              ,lput = operation (\ s k -> return $ 
-                      \_ -> do{ r <- k (); r s } )
-            })
-            (do x <- action
-                return (\s -> return x))
-       f init
--- END:statemon
-
 -- BEGIN:stateex
 add :: (State Int :? e) => Int -> Eff e ()  
 add i = do j <- perform get ()

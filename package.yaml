@@ -42,7 +42,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestAOP
-    - -O3
+    - -O2
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
@@ -52,7 +52,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestQueens
-    - -O3
+    - -O2
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
@@ -62,7 +62,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestState
-    - -O3
+    - -O2 
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
@@ -72,7 +72,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestError
-    - -O3
+    - -O2 -fspecialise-aggressively
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
@@ -94,7 +94,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestLayer
-    - -O3
+    - -O2
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev
@@ -104,7 +104,7 @@ executables:
     source-dirs:         app
     ghc-options:
     - -main-is TestPyth
-    - -O3
+    - -O2
     - -Wno-simplifiable-class-constraints
     dependencies:
     - effev

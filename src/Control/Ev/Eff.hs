@@ -167,7 +167,7 @@ instance Applicative (Eff e) where
   pure  = return
   (<*>) = ap
 instance Monad (Eff e) where
-  return x          = Eff (\ctx -> pure x)
+  return x          = Eff (\ctx -> return x)
   (Eff eff) >>= f   = Eff (\ctx -> do x <- eff ctx
                                       under ctx (f x))
 
