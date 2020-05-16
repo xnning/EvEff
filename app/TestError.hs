@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts,TypeOperators #-}
 
 module TestError where
 
@@ -27,32 +27,42 @@ list n = replicate n 1 ++ [0]
 errorPure n = product $ list n
 
 errorMonadic :: Int -> Int
-errorMonadic n = either id id m
- where
- m = foldM f 1 (list n)
- f acc 0 = Me.throwError 0
- f acc x = return $ acc * x
+errorMonadic n = either id id $ errMonadic n
+
+errMonadic :: Me.MonadError Int m => Int -> m Int
+errMonadic n = foldM f 1 (list n)
+             where 
+               f acc 0 = Me.throwError (0::Int)
+               f acc x = return (acc * x)
 
 errorEE :: Int -> Int
-errorEE n = either id id . EE.run . EEe.runError $ m
- where
- m = foldM f 1 (list n)
- f acc 0 = EEe.throwError (0::Int)
- f acc x = return $ acc * x
+errorEE n = either id id $ EE.run $ EEe.runError $ errEE n
+
+errEE :: (EE.Member (EEe.Exc Int) e) => Int -> EE.Eff e Int
+errEE n = foldM f 1 (list n)
+        where 
+         f acc 0 = EEe.throwError (0::Int)
+         f acc x = return (acc * x) 
+ 
 
 errorF :: Int -> Int
-errorF n = either id id . F.run . Fe.runError $ m
- where
- m = foldM f 1 (list n)
- f acc 0 = Fe.throwError (0::Int)
- f acc x = return $ acc * x
+errorF n = either id id $ F.run $ Fe.runError $ errF n
+
+errF :: (F.Has (Fe.Error Int) sig m ) => Int -> m Int
+errF n = foldM f 1 (list n)
+       where 
+         f acc 0 = Fe.throwError (0::Int)
+         f acc x = return (acc * x)
 
 errorEff :: Int -> Int
-errorEff n = either id id . runEff . E.exceptEither $ m
- where
- m = foldM f 1 (list n)
- f acc 0 = perform E.throwError (0::Int)
- f acc x = return $ acc * x
+errorEff n = either id id $ runEff $ E.exceptEither $ errEff n
+  
+errEff :: (E.Except Int :? e) => Int -> Eff e Int
+errEff n = foldM f 1 (list n)
+         where
+          f acc 0 = perform E.throwError (0::Int)
+          f acc x = return (acc * x)
+
 
 ppure     n = bench "pure"                    $ whnf errorPure    n
 monadic   n = bench "monadic"                 $ whnf errorMonadic n
