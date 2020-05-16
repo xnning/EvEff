@@ -24,6 +24,7 @@ import qualified Control.Ev.Util as E
 list :: Int -> [Int]
 list n = replicate n 1 ++ [0]
 
+
 errorPure n = product $ list n
 
 errorMonadic :: Int -> Int
