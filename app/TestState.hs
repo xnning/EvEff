@@ -154,13 +154,13 @@ countLinear n
 -- FUSED EFFECTS
 -------------------------------------------------------
 
-countF :: (F.Has (Fs.State Int) sig m ) => m Int
-countF = do n <- Fs.get
-            if n == 0 then return n
-            else do Fs.put (n - 1)
-                    countF
+countFused :: (F.Has (Fs.State Int) sig m ) => m Int
+countFused = do n <- Fs.get
+                if n == 0 then return n
+                else do Fs.put (n - 1)
+                        countFused
 
-runCountF n = F.run $ Fs.runState n countF
+runCountFused n = F.run $ Fs.runState n countFused
 
 -------------------------------------------------------
 -- TESTS
@@ -171,11 +171,11 @@ monadic   n = bench "monadic" $ whnf runMonadic n
 ee        n = bench "extensible effects "     $ whnf runEE n
 st        n = bench "runST"   $ whnf runCountST n
 
+fe        n  = bench "fused effects"        $ whnf runCountFused n
 effFun    n = bench "eff functional state" $ whnf countFun n
 effLoc    n = bench "eff"            $ whnf countTail n
 effLocNt  n = bench "eff non tail"   $ whnf countNonTail n
 effBuiltin n = bench "eff builtin"    $ whnf countBuiltin n
-fe        n  = bench "fused effects"        $ whnf runCountF n
 
 comp n  = [ ppure n
           , monadic n
@@ -183,9 +183,9 @@ comp n  = [ ppure n
           , ee n
           , fe n          
           , effBuiltin n
+          , effLoc n
           , effLocNt n
           , effFun n          
-          , effLoc n
           ]
 
 iterExp = 7
