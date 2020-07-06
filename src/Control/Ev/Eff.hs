@@ -17,7 +17,10 @@ Maintainer  : xnning@hku.hk; daan@microsoft.com
 Stability   : Experimental
 
 Efficient effect handlers based on Evidence translation. The implementation
-is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020.
+is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020,
+and described in detail in 
+/"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020. 
+
 
 An example of defining and using a @Reader@ effect:
 
