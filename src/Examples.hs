@@ -40,7 +40,7 @@ greetOrExit
 -- END:readermult
 
 -- BEGIN:readernoctx
-greetMaybe :: Reader String :? e => Eff e (Maybe String)    
+greetMaybe :: (Reader String :? e) => Eff e (Maybe String)    
 greetMaybe = do s <- perform ask ()
                 if null s then return Nothing
                 else return (Just ("hello " ++ s))
@@ -192,16 +192,16 @@ eager action = firstResult (toMaybe action)
 -- END:eager
 
 -- BEGIN:choice
-choice :: Amb :? e => Eff e a -> Eff e a -> Eff e a  
+choice :: (Amb :? e) => Eff e a -> Eff e a -> Eff e a  
 choice p1 p2 = do b <- perform flip ()
                   if b then p1 else p2
 -- END:choice
 
 -- BEGIN:manyeg
-many :: Amb :? e => Eff e a -> Eff e [a]  
+many :: (Amb :? e) => Eff e a -> Eff e [a]  
 many p = choice (many1 p) (return [])
 
-many1 :: Amb :? e => Eff e a -> Eff e [a]  
+many1 :: (Amb :? e) => Eff e a -> Eff e [a]  
 many1 p = do x <- p; xs <- many p; return (x:xs)
 -- END:manyeg
 
@@ -212,7 +212,7 @@ data Parse e ans = Parse {
 -- END:parse
 
 -- BEGIN:parsefun
-parse :: Exn :? e =>
+parse :: (Exn :? e) =>
   String -> Eff (Parse :* e) b -> Eff e (b, String)  
 parse input
   = handlerLocalRet input (\x s -> (x, s)) $
@@ -225,12 +225,12 @@ parse input
 -- END:parsefun
 
 -- BEGIN:symbol
-symbol :: Parse :? e => Char -> Eff e Char  
+symbol :: (Parse :? e) => Char -> Eff e Char  
 symbol c = perform satisfy (\input -> case input of
     (d:rest) | d == c -> Just (c, rest)
     _ -> Nothing)
 
-digit :: Parse :? e => Eff e Int  
+digit :: (Parse :? e) => Eff e Int  
 digit = perform satisfy (\input -> case input of
     (d:rest) | isDigit d -> Just (digitToInt d, rest)
     _ -> Nothing)
