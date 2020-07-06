@@ -65,7 +65,7 @@ data Exn e ans
 -- BEGIN:toMaybe
 toMaybe :: Eff (Exn :* e) a -> Eff e (Maybe a)  
 toMaybe
-  = handlerRet (Just) $ Exn{ 
+  = handlerRet Just $ Exn{ 
       failure = operation (\ () _ -> return Nothing) }
 -- END:toMaybe
 
@@ -148,11 +148,11 @@ output
 
 -- BEGIN:amb
 data Amb e ans
-     = Amb { flip :: forall b. Op () Bool e ans }  
+     = Amb { flip :: Op () Bool e ans }  
 -- END:amb
 
 -- BEGIN:xor
-xor :: Amb :? e => Eff e Bool  
+xor :: (Amb :? e) => Eff e Bool  
 xor = do x <- perform flip ()
          y <- perform flip ()
          return ((x && not y) || (not x && y))
@@ -183,12 +183,12 @@ firstResult = handler Amb{
 -- BEGIN:solutions
 solutions :: Eff (Exn :* Amb :* e) a -> Eff e [a]  
 solutions action
-  = fmap catMaybes (allResults (toMaybe (action)))
+  = fmap catMaybes (allResults (toMaybe action))
 -- END:solutions
 
 -- BEGIN:eager
 eager :: Eff (Exn :* Amb :* e) a -> Eff e (Maybe a)  
-eager action = firstResult (toMaybe (action))
+eager action = firstResult (toMaybe action)
 -- END:eager
 
 -- BEGIN:choice
@@ -215,12 +215,12 @@ data Parse e ans = Parse {
 parse :: Exn :? e =>
   String -> Eff (Parse :* e) b -> Eff e (b, String)  
 parse input
-  = handlerLocalRet input (\x y -> (x, y)) $
+  = handlerLocalRet input (\x s -> (x, s)) $
     Parse { satisfy = operation $ \p k ->
-      do input <- localGet
+      do input <- perform lget ()
          case (p input) of
             Nothing -> perform failure ()
-            Just (x, rest) -> do localPut rest
+            Just (x, rest) -> do perform lput rest
                                  k x }
 -- END:parsefun
 
