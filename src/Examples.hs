@@ -263,3 +263,23 @@ test1 = runEff (solutions (parse "1+2*3" expr))
 
 test2 = runEff (eager (parse "1+2*3" expr))
 -- Just (7,"")
+
+
+-- BEGIN:evil
+data Evil e ans = Evil { evil :: Op () () e ans }
+
+hevil :: Eff (Evil :* e) a -> Eff e (() -> Eff e a)
+hevil = handlerRet (\x -> (\() -> return x)) (Evil{ 
+          evil = operation (\() k -> return (\() -> do f <- k (); f ()))  
+        })
+        
+ebody :: (Reader Int :? e, Evil :? e) => Eff e Int
+ebody = do x <- perform ask ()
+           perform evil ()
+           y <- perform ask ()
+           return (x+y)
+           
+nonscoped :: Eff e Int           
+nonscoped = do f <- reader (1::Int) (hevil ebody)
+               reader (2::Int) (f ())
+-- END:evil
