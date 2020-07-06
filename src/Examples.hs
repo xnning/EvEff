@@ -198,11 +198,11 @@ choice p1 p2 = do b <- perform flip ()
 -- END:choice
 
 -- BEGIN:manyeg
-many :: Amb :? e => (() -> Eff e a) -> Eff e [a]  
+many :: Amb :? e => Eff e a -> Eff e [a]  
 many p = choice (many1 p) (return [])
 
-many1 :: Amb :? e => (() -> Eff e a) -> Eff e [a]  
-many1 p = do x <- p (); xs <- many p ; return (x:xs)
+many1 :: Amb :? e => Eff e a -> Eff e [a]  
+many1 p = do x <- p; xs <- many p; return (x:xs)
 -- END:manyeg
 
 -- BEGIN:parse
@@ -230,8 +230,8 @@ symbol c = perform satisfy (\input -> case input of
     (d:rest) | d == c -> Just (c, rest)
     _ -> Nothing)
 
-digit :: Parse :? e => () -> Eff e Int  
-digit c = perform satisfy (\input -> case input of
+digit :: Parse :? e => Eff e Int  
+digit = perform satisfy (\input -> case input of
     (d:rest) | isDigit d -> Just (digitToInt d, rest)
     _ -> Nothing)
 -- END:symbol
