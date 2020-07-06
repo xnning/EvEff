@@ -273,14 +273,18 @@ hevil = handlerRet (\x -> (\_ -> return x)) (Evil{
           evil = operation (\_ k -> 
                     return (\_ -> do f <- k (); f ()))  
         })
-        
+-- END:evil
+
+-- BEGIN:evilbody        
 ebody :: (Reader Int :? e, Evil :? e) => Eff e Int  
 ebody = do x <- perform ask ()    -- x == 1
            perform evil ()
            y <- perform ask ()    -- y == 2 !
            return (x+y)         
-           
+-- END:evilbody
+
+-- BEGIN:nonscoped           
 nonscoped :: Eff e Int  
 nonscoped = do f <- reader (1::Int) (hevil ebody)
                reader (2::Int) (f ())
--- END:evil
+-- END:nonscoped
