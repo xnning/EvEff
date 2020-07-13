@@ -1,9 +1,11 @@
 # EvEff: Efficient effect handlers based on Evidence translation
 
 Efficient effect handlers based on Evidence translation. The implementation
-is based on "_Effect Handlers, Evidently_", Ningning Xie _et al._, ICFP 2020,
-and described in detail in 
-"_Effect Handlers in Haskell, Evidently_", Ningning Xie and Daan Leijen, Haskell 2020. 
+is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020 
+[(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-evidently),
+and the interface and design is described in detail in 
+/"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020 
+[(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-in-haskell-evidently).
 
 Installation:
 
@@ -20,6 +22,7 @@ Installation:
 An example of defining and using a `Reader` effect:
 
 ```Haskell
+{-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types #-}
 import Control.Ev.Eff
 
 -- A @Reader@ effect definition with one operation @ask@ of type @()@ to @a@.
@@ -36,13 +39,5 @@ test = runEff $
           return (length s)
 ```
 
-Note: to use this library, you generally need:
-
-```Haskell
-{-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types #-}
-```
-
-in front of your module declaration.
-
-Enjoy,
+Enjoy,  
   Daan Leijen and Ningning Xie,  May 2020.

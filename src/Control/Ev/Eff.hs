@@ -17,14 +17,16 @@ Maintainer  : xnning@hku.hk; daan@microsoft.com
 Stability   : Experimental
 
 Efficient effect handlers based on Evidence translation. The implementation
-is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020,
-and described in detail in 
-/"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020. 
-
+is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020 [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-evidently),
+and the interface and design is described in detail in 
+/"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020 [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-in-haskell-evidently).
 
 An example of defining and using a @Reader@ effect:
 
 @
+\{\-\# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  \#\-\}
+import Control.Ev.Eff
+
 -- A @Reader@ effect definition with one operation @ask@ of type @()@ to @a@.
 data Reader a e ans = Reader{ ask :: `Op` () a e ans }
 
@@ -39,16 +41,10 @@ test = `runEff` $
           return (length s)
 @
 
-Note: to use this library, you generally need:
+Enjoy, 
 
-@
-\{\-\# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  \#\-\}
-@
+Daan Leijen and Ningning Xie,  May 2020.
 
-in front of your module declaration.
-
-Enjoy,
-  Daan Leijen and Ningning Xie,  May 2020.
 -}
 module Control.Ev.Eff(
             -- * Effect monad
@@ -257,7 +253,7 @@ type h :? e = In h e   -- is `h` in the effect context `e` ?
 data SubContext h  = forall e. SubContext !(Context (h :* e))  -- make `e` existential
 
 -- | The @In@ constraint is an alias for `:?`
-class In h e where -- | e -> h 
+class In h e where
   subContext :: Context e -> SubContext h  -- ^ Internal method to select a sub context
 
 instance (InEq (HEqual h h') h h' w) => In h (h' :* w) where
@@ -269,7 +265,7 @@ type family HEqual (h :: * -> * -> *) (h' :: * -> * -> *) :: Bool where
   HEqual h h' = 'False
 
 -- | Internal class used by `:?`.
-class (iseq ~ HEqual h h') => InEq iseq h h' e where  -- | e h' -> h 
+class (iseq ~ HEqual h h') => InEq iseq h h' e where 
   subContextEq :: Context (h' :* e) -> SubContext h
 
 instance (h ~ h') => InEq 'True h h' e where
