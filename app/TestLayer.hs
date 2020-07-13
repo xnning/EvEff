@@ -3,6 +3,23 @@
   , AllowAmbiguousTypes -- Extensible Effects
   , TypeOperators
 #-}
+{-|
+Description : Benchmark layers of effects.
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
+License     : MIT
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
+
+Described in /"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020. 
+Original benchmark from
+/"Freer Monads, More Extensible Effects"/, Oleg Kiselyov and Hiromi Ishii, Haskell 2015.
+
+This contains both the layered benchmark, as well as the `count5` benchmark.
+The `count5` benchmark is run in isolation when the value `quick` is set to `True` (see below)
+
+Note: we use over/under by viewing the effects as a real "stack" (of, say, papers),
+where the "top" of the stack is the innermost handler.
+-}
 module TestLayer where
 
 import Data.List
@@ -74,35 +91,34 @@ monadic n = foldM f 1 [n, n-1 .. 0]
         f acc x = return (max acc x)
 
 
--- print? why?
 layerMonadic n =
   Ms.runState (monadic n) 0
 
--- LAYER OVER
+-- LAYER UNDER
 
-layerOverMonadic1 n =
+layerUnderMonadic1 n =
   flip Mr.runReader (0::Int) $
    Ms.runStateT (monadic n) 0
 
-layerOverMonadic2 n =
+layerUnderMonadic2 n =
   flip Mr.runReader (0::Int) $
   flip Mr.runReaderT (0::Integer) $
     Ms.runStateT (monadic n) 0
 
-layerOverMonadic3 n =
+layerUnderMonadic3 n =
   flip Mr.runReader (0::Int) $
   flip Mr.runReaderT (0::Integer) $
   flip Mr.runReaderT True $
     Ms.runStateT (monadic n) 0
 
-layerOverMonadic4 n =
+layerUnderMonadic4 n =
   flip Mr.runReader (0::Int) $
   flip Mr.runReaderT (0::Integer) $
   flip Mr.runReaderT True $
   flip Mr.runReaderT "0" $
     Ms.runStateT (monadic n) 0
 
-layerOverMonadic5 n =
+layerUnderMonadic5 n =
   flip Mr.runReader (0::Int) $
   flip Mr.runReaderT (0::Integer) $
   flip Mr.runReaderT True $
@@ -110,7 +126,7 @@ layerOverMonadic5 n =
   flip Mr.runReaderT 'c' $
   Ms.runStateT (monadic n) 0
 
-layerOverMonadic6 n =
+layerUnderMonadic6 n =
   flip Mr.runReader (0::Int) $
   flip Mr.runReaderT (0::Integer) $
   flip Mr.runReaderT True $
@@ -121,25 +137,25 @@ layerOverMonadic6 n =
 
 -- LAYER UNDER
 
-layerUnderMonadic1 n =
+layerOverMonadic1 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
       monadic n
 
-layerUnderMonadic2 n =
+layerOverMonadic2 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
       monadic n
 
-layerUnderMonadic3 n =
+layerOverMonadic3 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
      flip Mr.runReaderT True $
       monadic n
 
-layerUnderMonadic4 n =
+layerOverMonadic4 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
@@ -147,7 +163,7 @@ layerUnderMonadic4 n =
      flip Mr.runReaderT "0" $
       monadic n
 
-layerUnderMonadic5 n =
+layerOverMonadic5 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
@@ -156,7 +172,7 @@ layerUnderMonadic5 n =
      flip Mr.runReaderT 'c' $
       monadic n
 
-layerUnderMonadic6 n =
+layerOverMonadic6 n =
     flip Ms.runState 0 $
      flip Mr.runReaderT (0::Int) $
      flip Mr.runReaderT (0::Integer) $
@@ -180,31 +196,31 @@ ee n = foldM f 1 [n, n-1 .. 0]
 layerEE n = EE.run $
   EEs.runState 0 (ee n) -- saved one annotation
 
--- LAYER OVER
+-- LAYER UNDER
 
-layerOverEE1 n = EE.run $
+layerUnderEE1 n = EE.run $
   EEr.runReader (0::Int) $
     EEs.runState (0::Integer) (ee n)
 
-layerOverEE2 n = EE.run $
+layerUnderEE2 n = EE.run $
   EEr.runReader (0::Int) $
   EEr.runReader (0::Integer) $
     EEs.runState (0::Integer) (ee n)
 
-layerOverEE3 n = EE.run $
+layerUnderEE3 n = EE.run $
   EEr.runReader (0::Int) $
   EEr.runReader (0::Integer) $
   EEr.runReader True $
     EEs.runState (0::Integer) (ee n)
 
-layerOverEE4 n = EE.run $
+layerUnderEE4 n = EE.run $
   EEr.runReader (0::Int) $
   EEr.runReader (0::Integer) $
   EEr.runReader True $
   EEr.runReader "0" $
     EEs.runState (0::Integer) (ee n)
 
-layerOverEE5 n = EE.run $
+layerUnderEE5 n = EE.run $
   EEr.runReader (0::Int) $
   EEr.runReader (0::Integer) $
   EEr.runReader True $
@@ -212,7 +228,7 @@ layerOverEE5 n = EE.run $
   EEr.runReader 'c' $
     EEs.runState (0::Integer) (ee n)
 
-layerOverEE6 n = EE.run $
+layerUnderEE6 n = EE.run $
   EEr.runReader (0::Int) $
   EEr.runReader (0::Integer) $
   EEr.runReader True $
@@ -222,25 +238,25 @@ layerOverEE6 n = EE.run $
     EEs.runState (0::Integer) (ee n)
 -- LAYER UNDER
 
-layerUnderEE1 n = EE.run $
+layerOverEE1 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     ee n
 
-layerUnderEE2 n = EE.run $
+layerOverEE2 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
     ee n
 
-layerUnderEE3 n = EE.run $
+layerOverEE3 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
     EEr.runReader True $
     ee n
 
-layerUnderEE4 n = EE.run $
+layerOverEE4 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
@@ -248,7 +264,7 @@ layerUnderEE4 n = EE.run $
     EEr.runReader "0" $
     ee n
 
-layerUnderEE5 n = EE.run $
+layerOverEE5 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
@@ -257,7 +273,7 @@ layerUnderEE5 n = EE.run $
     EEr.runReader 'c' $
     ee n
 
-layerUnderEE6 n = EE.run $
+layerOverEE6 n = EE.run $
   EEs.runState (0::Integer) $
     EEr.runReader (0::Int) $
     EEr.runReader (0::Integer) $
@@ -281,29 +297,29 @@ fe n = foldM f 1 [n, n-1 .. 0]
 layerF n = F.run $
     Fs.runState (0::Integer) (fe n)
 
-layerOverF1 n = F.run $
+layerUnderF1 n = F.run $
   Fr.runReader (0::Int) $
     Fs.runState (0::Integer) (fe n)
 
-layerOverF2 n = F.run $
+layerUnderF2 n = F.run $
   Fr.runReader (0::Int) $
   Fr.runReader (0::Integer) $
     Fs.runState (0::Integer) (fe n)
 
-layerOverF3 n = F.run $
+layerUnderF3 n = F.run $
   Fr.runReader (0::Int) $
   Fr.runReader (0::Integer) $
   Fr.runReader True $
     Fs.runState (0::Integer) (fe n)
 
-layerOverF4 n = F.run $
+layerUnderF4 n = F.run $
   Fr.runReader (0::Int) $
   Fr.runReader (0::Integer) $
   Fr.runReader True $
   Fr.runReader "0" $
     Fs.runState (0::Integer) (fe n)
 
-layerOverF5 n = F.run $
+layerUnderF5 n = F.run $
   Fr.runReader (0::Int) $
   Fr.runReader (0::Integer) $
   Fr.runReader True $
@@ -311,7 +327,7 @@ layerOverF5 n = F.run $
   Fr.runReader 'c' $
     Fs.runState (0::Integer) (fe n)
 
-layerOverF6 n = F.run $
+layerUnderF6 n = F.run $
   Fr.runReader (0::Int) $
   Fr.runReader (0::Integer) $
   Fr.runReader True $
@@ -322,25 +338,25 @@ layerOverF6 n = F.run $
 
 -- LAYER UNDER
 
-layerUnderF1 n = F.run $
+layerOverF1 n = F.run $
   Fs.runState (0::Integer) $
     Fr.runReader (0::Int) $
     fe n
 
-layerUnderF2 n = F.run $
+layerOverF2 n = F.run $
   Fs.runState (0::Integer) $
     Fr.runReader (0::Int) $
     Fr.runReader (0::Integer) $
     fe n
 
-layerUnderF3 n = F.run $
+layerOverF3 n = F.run $
   Fs.runState (0::Integer) $
     Fr.runReader (0::Int) $
     Fr.runReader (0::Integer) $
     Fr.runReader True $
     fe n
 
-layerUnderF4 n = F.run $
+layerOverF4 n = F.run $
   Fs.runState (0::Integer) $
     Fr.runReader (0::Int) $
     Fr.runReader (0::Integer) $
@@ -348,7 +364,7 @@ layerUnderF4 n = F.run $
     Fr.runReader "0" $
     fe n
 
-layerUnderF5 n = F.run $
+layerOverF5 n = F.run $
   Fs.runState (0::Integer) $
     Fr.runReader (0::Int) $
     Fr.runReader (0::Integer) $
@@ -357,7 +373,7 @@ layerUnderF5 n = F.run $
     Fr.runReader 'c' $
     fe n
 
-layerUnderF6 n = F.run $
+layerOverF6 n = F.run $
   Fs.runState (0::Integer) $
     Fr.runReader (0::Int) $
     Fr.runReader (0::Integer) $
@@ -381,36 +397,36 @@ eff n = foldM f 1 [n, n-1 .. 0]
 layerEff n = runEff $
   state (0::Integer) (eff n)
 
-layerOverEff1 n = runEff $
+layerUnderEff1 n = runEff $
   reader (0::Int) $
     state (0::Integer) (eff n)
 
-layerOverEff2 n = runEff $
+layerUnderEff2 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
     state (0::Integer) (eff n)
 
-layerOverEff3 n = runEff $
+layerUnderEff3 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
     state (0::Integer) (eff n)
 
-layerOverEff4 n = runEff $
+layerUnderEff4 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
   reader "0" $
     state (0::Integer) (eff n)
 
-layerOverEff5 n = runEff $
+layerUnderEff5 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
   reader 'c' $
     state (0::Integer) (eff n)
 
-layerOverEff6 n = runEff $
+layerUnderEff6 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
@@ -420,25 +436,25 @@ layerOverEff6 n = runEff $
     state (0::Integer) (eff n)
 
 
-layerUnderEff1 n = runEff $
+layerOverEff1 n = runEff $
   state (0::Integer) $
     reader (0::Int) $
     eff n
 
-layerUnderEff2 n = runEff $
+layerOverEff2 n = runEff $
   state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     eff n
 
-layerUnderEff3 n = runEff $
+layerOverEff3 n = runEff $
   state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     reader True $
     eff n
 
-layerUnderEff4 n = runEff $
+layerOverEff4 n = runEff $
   state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
@@ -446,7 +462,7 @@ layerUnderEff4 n = runEff $
     reader "0" $
     eff n
 
-layerUnderEff5 n = runEff $
+layerOverEff5 n = runEff $
   state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
@@ -454,7 +470,7 @@ layerUnderEff5 n = runEff $
     reader 'c' $
     eff n
 
-layerUnderEff6 n = runEff $
+layerOverEff6 n = runEff $
   state (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
@@ -475,36 +491,36 @@ stateNonTail init
 layerEffNonTail n = runEff $
   stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail1 n = runEff $
+layerUnderEffNonTail1 n = runEff $
   reader (0::Int) $
     stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail2 n = runEff $
+layerUnderEffNonTail2 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
     stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail3 n = runEff $
+layerUnderEffNonTail3 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
     stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail4 n = runEff $
+layerUnderEffNonTail4 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
   reader "0" $
     stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail5 n = runEff $
+layerUnderEffNonTail5 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
   reader 'c' $
     stateNonTail (0::Integer) (eff n)
 
-layerOverEffNonTail6 n = runEff $
+layerUnderEffNonTail6 n = runEff $
   reader (0::Int) $
   reader (0::Integer) $
   reader True $
@@ -514,25 +530,25 @@ layerOverEffNonTail6 n = runEff $
     stateNonTail (0::Integer) (eff n)
 
 
-layerUnderEffNonTail1 n = runEff $
+layerOverEffNonTail1 n = runEff $
   stateNonTail (0::Integer) $
     reader (0::Int) $
     eff n
 
-layerUnderEffNonTail2 n = runEff $
+layerOverEffNonTail2 n = runEff $
   stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     eff n
 
-layerUnderEffNonTail3 n = runEff $
+layerOverEffNonTail3 n = runEff $
   stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
     reader True $
     eff n
 
-layerUnderEffNonTail4 n = runEff $
+layerOverEffNonTail4 n = runEff $
   stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
@@ -540,7 +556,7 @@ layerUnderEffNonTail4 n = runEff $
     reader "0" $
     eff n
 
-layerUnderEffNonTail5 n = runEff $
+layerOverEffNonTail5 n = runEff $
   stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
@@ -548,7 +564,7 @@ layerUnderEffNonTail5 n = runEff $
     reader 'c' $
     eff n
 
-layerUnderEffNonTail6 n = runEff $
+layerOverEffNonTail6 n = runEff $
   stateNonTail (0::Integer) $
     reader (0::Int) $
     reader (0::Integer) $
@@ -573,47 +589,47 @@ effL n = foldM f 1 [n, n-1 .. 0]
 
 layerEffL n = runEff $ lstate (0::Integer) (effL n)
 
-layerOverEffL1 n = runEff $
+layerUnderEffL1 n = runEff $
   lreader (0::Int) $
   lstate (0::Integer) (effL n)
 
-layerOverEffL2 n = runEff $
+layerUnderEffL2 n = runEff $
   lreader (0::Int) $
   lreader (0::Integer) $
   lstate (0::Integer) (effL n)
 
-layerOverEffL3 n = runEff $
+layerUnderEffL3 n = runEff $
   lreader (0::Int) $
   lreader (0::Integer) $
   lreader True $
   lstate (0::Integer) (effL n)
 
-layerOverEffL4 n = runEff $
+layerUnderEffL4 n = runEff $
   lreader (0::Int) $
   lreader (0::Integer) $
   lreader True $
   lreader "0" $
   lstate (0::Integer) (effL n)
 
-layerUnderEffL1 n = runEff $
+layerOverEffL1 n = runEff $
   lstate (0::Integer) $
   lreader (0::Int) $
   effL n
 
-layerUnderEffL2 n = runEff $
+layerOverEffL2 n = runEff $
   lstate (0::Integer) $
   lreader (0::Int) $
   lreader (0::Integer) $
   effL n
 
-layerUnderEffL3 n = runEff $
+layerOverEffL3 n = runEff $
   lstate (0::Integer) $
   lreader (0::Int) $
   lreader (0::Integer) $
   lreader True $
   effL n
 
-layerUnderEffL4 n = runEff $
+layerOverEffL4 n = runEff $
   lstate (0::Integer) $
   lreader (0::Int) $
   lreader (0::Integer) $
@@ -639,86 +655,86 @@ comp n = if (quick) then
          ]
          else 
          [ bench "monadic 0"          $ whnf layerMonadic n
-         , bench "monadic over 1"     $ whnf layerOverMonadic1 n
-         , bench "monadic over 2"     $ whnf layerOverMonadic2 n
-         , bench "monadic over 3"     $ whnf layerOverMonadic3 n
-         , bench "monadic over 4"     $ whnf layerOverMonadic4 n
-         , bench "monadic over 5"     $ whnf layerOverMonadic5 n
-         , bench "monadic over 6"     $ whnf layerOverMonadic6 n
-         , bench "monadic under 1"    $ whnf layerUnderMonadic1 n
-         , bench "monadic under 2"    $ whnf layerUnderMonadic2 n
-         , bench "monadic under 3"    $ whnf layerUnderMonadic3 n
-         , bench "monadic under 4"    $ whnf layerUnderMonadic4 n
-         , bench "monadic under 5"    $ whnf layerUnderMonadic5 n
-         , bench "monadic under 6"    $ whnf layerUnderMonadic6 n
+         , bench "monadic under 1"     $ whnf layerUnderMonadic1 n
+         , bench "monadic under 2"     $ whnf layerUnderMonadic2 n
+         , bench "monadic under 3"     $ whnf layerUnderMonadic3 n
+         , bench "monadic under 4"     $ whnf layerUnderMonadic4 n
+         , bench "monadic under 5"     $ whnf layerUnderMonadic5 n
+         , bench "monadic under 6"     $ whnf layerUnderMonadic6 n
+         , bench "monadic over 1"    $ whnf layerOverMonadic1 n
+         , bench "monadic over 2"    $ whnf layerOverMonadic2 n
+         , bench "monadic over 3"    $ whnf layerOverMonadic3 n
+         , bench "monadic over 4"    $ whnf layerOverMonadic4 n
+         , bench "monadic over 5"    $ whnf layerOverMonadic5 n
+         , bench "monadic over 6"    $ whnf layerOverMonadic6 n
 
          , bench "extensible effects 0"          $ whnf layerEE n
-         , bench "extensible effects over 1"     $ whnf layerOverEE1 n
-         , bench "extensible effects over 2"     $ whnf layerOverEE2 n
-         , bench "extensible effects over 3"     $ whnf layerOverEE3 n
-         , bench "extensible effects over 4"     $ whnf layerOverEE4 n
-         , bench "extensible effects over 5"     $ whnf layerOverEE5 n
-         , bench "extensible effects over 6"     $ whnf layerOverEE6 n
-         , bench "extensible effects under 1"    $ whnf layerUnderEE1 n
-         , bench "extensible effects under 2"    $ whnf layerUnderEE2 n
-         , bench "extensible effects under 3"    $ whnf layerUnderEE3 n
-         , bench "extensible effects under 4"    $ whnf layerUnderEE4 n
-         , bench "extensible effects under 5"    $ whnf layerUnderEE5 n
-         , bench "extensible effects under 6"    $ whnf layerUnderEE6 n
+         , bench "extensible effects under 1"     $ whnf layerUnderEE1 n
+         , bench "extensible effects under 2"     $ whnf layerUnderEE2 n
+         , bench "extensible effects under 3"     $ whnf layerUnderEE3 n
+         , bench "extensible effects under 4"     $ whnf layerUnderEE4 n
+         , bench "extensible effects under 5"     $ whnf layerUnderEE5 n
+         , bench "extensible effects under 6"     $ whnf layerUnderEE6 n
+         , bench "extensible effects over 1"    $ whnf layerOverEE1 n
+         , bench "extensible effects over 2"    $ whnf layerOverEE2 n
+         , bench "extensible effects over 3"    $ whnf layerOverEE3 n
+         , bench "extensible effects over 4"    $ whnf layerOverEE4 n
+         , bench "extensible effects over 5"    $ whnf layerOverEE5 n
+         , bench "extensible effects over 6"    $ whnf layerOverEE6 n
 
          , bench "fused effects 0"          $ whnf layerF n
-         , bench "fused effects over 1"     $ whnf layerOverF1 n
-         , bench "fused effects over 2"     $ whnf layerOverF2 n
-         , bench "fused effects over 3"     $ whnf layerOverF3 n
-         , bench "fused effects over 4"     $ whnf layerOverF4 n
-         , bench "fused effects over 5"     $ whnf layerOverF5 n
-         , bench "fused effects over 6"     $ whnf layerOverF6 n
-         , bench "fused effects under 1"    $ whnf layerUnderF1 n
-         , bench "fused effects under 2"    $ whnf layerUnderF2 n
-         , bench "fused effects under 3"    $ whnf layerUnderF3 n
-         , bench "fused effects under 4"    $ whnf layerUnderF4 n
-         , bench "fused effects under 5"    $ whnf layerUnderF5 n
-         , bench "fused effects under 6"    $ whnf layerUnderF6 n
+         , bench "fused effects under 1"     $ whnf layerUnderF1 n
+         , bench "fused effects under 2"     $ whnf layerUnderF2 n
+         , bench "fused effects under 3"     $ whnf layerUnderF3 n
+         , bench "fused effects under 4"     $ whnf layerUnderF4 n
+         , bench "fused effects under 5"     $ whnf layerUnderF5 n
+         , bench "fused effects under 6"     $ whnf layerUnderF6 n
+         , bench "fused effects over 1"    $ whnf layerOverF1 n
+         , bench "fused effects over 2"    $ whnf layerOverF2 n
+         , bench "fused effects over 3"    $ whnf layerOverF3 n
+         , bench "fused effects over 4"    $ whnf layerOverF4 n
+         , bench "fused effects over 5"    $ whnf layerOverF5 n
+         , bench "fused effects over 6"    $ whnf layerOverF6 n
 
 {-
          , bench "eff linear 0"          $ whnf layerEffL n
-         , bench "eff linear over 1"     $ whnf layerOverEffL1 n
-         , bench "eff linear over 2"     $ whnf layerOverEffL2 n
-         , bench "eff linear over 3"     $ whnf layerOverEffL3 n
-         , bench "eff linear over 4"     $ whnf layerOverEffL4 n
-         , bench "eff linear under 1"    $ whnf layerUnderEffL1 n
-         , bench "eff linear under 2"    $ whnf layerUnderEffL2 n
-         , bench "eff linear under 3"    $ whnf layerUnderEffL3 n
-         , bench "eff linear under 4"    $ whnf layerUnderEffL4 n
+         , bench "eff linear under 1"     $ whnf layerUnderEffL1 n
+         , bench "eff linear under 2"     $ whnf layerUnderEffL2 n
+         , bench "eff linear under 3"     $ whnf layerUnderEffL3 n
+         , bench "eff linear under 4"     $ whnf layerUnderEffL4 n
+         , bench "eff linear over 1"    $ whnf layerOverEffL1 n
+         , bench "eff linear over 2"    $ whnf layerOverEffL2 n
+         , bench "eff linear over 3"    $ whnf layerOverEffL3 n
+         , bench "eff linear over 4"    $ whnf layerOverEffL4 n
 
          , bench "eff nontail 0"          $ whnf layerEffNonTail n
-         , bench "eff nontail over 1"     $ whnf layerOverEffNonTail1 n
-         , bench "eff nontail over 2"     $ whnf layerOverEffNonTail2 n
-         , bench "eff nontail over 3"     $ whnf layerOverEffNonTail3 n
-         , bench "eff nontail over 4"     $ whnf layerOverEffNonTail4 n
-         , bench "eff nontail over 5"     $ whnf layerOverEffNonTail5 n
-         , bench "eff nontail over 6"     $ whnf layerOverEffNonTail6 n
-         , bench "eff nontail under 1"    $ whnf layerUnderEffNonTail1 n
-         , bench "eff nontail under 2"    $ whnf layerUnderEffNonTail2 n
-         , bench "eff nontail under 3"    $ whnf layerUnderEffNonTail3 n
-         , bench "eff nontail under 4"    $ whnf layerUnderEffNonTail4 n
-         , bench "eff nontail under 5"    $ whnf layerUnderEffNonTail5 n
-         , bench "eff nontail under 6"    $ whnf layerUnderEffNonTail6 n
+         , bench "eff nontail under 1"     $ whnf layerUnderEffNonTail1 n
+         , bench "eff nontail under 2"     $ whnf layerUnderEffNonTail2 n
+         , bench "eff nontail under 3"     $ whnf layerUnderEffNonTail3 n
+         , bench "eff nontail under 4"     $ whnf layerUnderEffNonTail4 n
+         , bench "eff nontail under 5"     $ whnf layerUnderEffNonTail5 n
+         , bench "eff nontail under 6"     $ whnf layerUnderEffNonTail6 n
+         , bench "eff nontail over 1"    $ whnf layerOverEffNonTail1 n
+         , bench "eff nontail over 2"    $ whnf layerOverEffNonTail2 n
+         , bench "eff nontail over 3"    $ whnf layerOverEffNonTail3 n
+         , bench "eff nontail over 4"    $ whnf layerOverEffNonTail4 n
+         , bench "eff nontail over 5"    $ whnf layerOverEffNonTail5 n
+         , bench "eff nontail over 6"    $ whnf layerOverEffNonTail6 n
 -}
 
          , bench "eff 0"          $ whnf layerEff n
-         , bench "eff over 1"     $ whnf layerOverEff1 n
-         , bench "eff over 2"     $ whnf layerOverEff2 n
-         , bench "eff over 3"     $ whnf layerOverEff3 n
-         , bench "eff over 4"     $ whnf layerOverEff4 n
-         , bench "eff over 5"     $ whnf layerOverEff5 n
-         , bench "eff over 6"     $ whnf layerOverEff6 n
-         , bench "eff under 1"    $ whnf layerUnderEff1 n
-         , bench "eff under 2"    $ whnf layerUnderEff2 n
-         , bench "eff under 3"    $ whnf layerUnderEff3 n
-         , bench "eff under 4"    $ whnf layerUnderEff4 n
-         , bench "eff under 5"    $ whnf layerUnderEff6 n
-         , bench "eff under 6"    $ whnf layerUnderEff6 n
+         , bench "eff under 1"     $ whnf layerUnderEff1 n
+         , bench "eff under 2"     $ whnf layerUnderEff2 n
+         , bench "eff under 3"     $ whnf layerUnderEff3 n
+         , bench "eff under 4"     $ whnf layerUnderEff4 n
+         , bench "eff under 5"     $ whnf layerUnderEff5 n
+         , bench "eff under 6"     $ whnf layerUnderEff6 n
+         , bench "eff over 1"    $ whnf layerOverEff1 n
+         , bench "eff over 2"    $ whnf layerOverEff2 n
+         , bench "eff over 3"    $ whnf layerOverEff3 n
+         , bench "eff over 4"    $ whnf layerOverEff4 n
+         , bench "eff over 5"    $ whnf layerOverEff6 n
+         , bench "eff over 6"    $ whnf layerOverEff6 n
 
          ]
 

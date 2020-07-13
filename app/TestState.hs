@@ -3,6 +3,15 @@
   , TypeOperators
   , AllowAmbiguousTypes -- Extensible Effects
 #-}
+{-|
+Description : Benchmark stateful counter
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
+License     : MIT
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
+
+Described in /"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020. 
+-}
 module TestState where
 
 import Criterion.Main

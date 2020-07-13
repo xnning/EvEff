@@ -1,1 +1,48 @@
-# effev
+# EvEff: Efficient effect handlers based on Evidence translation
+
+Efficient effect handlers based on Evidence translation. The implementation
+is based on "_Effect Handlers, Evidently_", Ningning Xie _et al._, ICFP 2020,
+and described in detail in 
+"_Effect Handlers in Haskell, Evidently_", Ningning Xie and Daan Leijen, Haskell 2020. 
+
+Installation:
+
+* First install [stack](https://docs.haskellstack.org)
+* Build with `> stack build`
+* Load examples:
+  ```
+  > stack ghci eveff:lib
+  ..
+  ghci> runEff helloWorld
+  "hello world" 
+  ```
+
+An example of defining and using a `Reader` effect:
+
+```Haskell
+import Control.Ev.Eff
+
+-- A @Reader@ effect definition with one operation @ask@ of type @()@ to @a@.
+data Reader a e ans = Reader{ ask :: Op () a e ans }
+
+greet :: (Reader String :? e) => Eff e String
+greet = do s <- perform ask ()
+           return ("hello " ++ s)
+
+test :: String
+test = runEff $
+       handler (Reader{ ask = value "world" }) $  -- @:: Reader String () Int@
+       do s <- greet                              -- executes in context @:: Eff (Reader String :* ()) Int@
+          return (length s)
+```
+
+Note: to use this library, you generally need:
+
+```Haskell
+{-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types #-}
+```
+
+in front of your module declaration.
+
+Enjoy,
+  Daan Leijen and Ningning Xie,  May 2020.

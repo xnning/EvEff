@@ -6,6 +6,18 @@
   , UndecidableInstances
   , RankNTypes
 #-}
+{-|
+Description : Benchmark backtracking pythagorean triples
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
+License     : MIT
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
+
+Described in /"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020. 
+Original benchmark from
+/"Freer Monads, More Extensible Effects"/, Oleg Kiselyov and Hiromi Ishii, Haskell 2015.
+
+-}
 module TestPyth where
 
 import Criterion.Main
@@ -207,9 +219,6 @@ pythEff n = length $
            ((runEff $ makeChoiceA0 $ pyth n) :: [(Int,Int,Int)])
 -}
 
-
-
--- do we have a fast version? hmm
 
 newtype Q e a = Q [Eff (Local (Q e a) :* e) [a]]
 

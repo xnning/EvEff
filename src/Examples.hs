@@ -1,5 +1,13 @@
 {-# LANGUAGE  TypeOperators, FlexibleContexts, Rank2Types  #-}
--- Nice Examples for the paper
+{-|
+Description : Examples of Control.Ev.Eff
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
+License     : MIT
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
+
+Examples from /"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020. 
+-}
 module Examples where
 import Control.Ev.Eff
 import Prelude hiding (flip)

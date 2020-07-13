@@ -1,5 +1,13 @@
 {-# LANGUAGE FlexibleContexts,TypeOperators #-}
+{-|
+Description : Benchmark exception
+Copyright   : (c) 2020, Microsoft Research; Daan Leijen; Ningning Xie
+License     : MIT
+Maintainer  : xnning@hku.hk; daan@microsoft.com
+Stability   : Experimental
 
+Original benchmark from 
+-}
 module TestError where
 
 import Criterion.Main
