@@ -18,7 +18,7 @@ Stability   : Experimental
 
 Efficient effect handlers based on Evidence translation. The implementation
 is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020 [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-evidently),
-and the interface and design is described in detail in 
+and the interface and design is described in detail in
 /"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020 [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-in-haskell-evidently).
 
 An example of defining and using a @Reader@ effect:
@@ -41,7 +41,7 @@ test = `runEff` $
           return (length s)
 @
 
-Enjoy, 
+Enjoy,
 
 Daan Leijen and Ningning Xie,  May 2020.
 
@@ -278,34 +278,6 @@ instance ('False ~ HEqual h h', In h e) => InEq 'False h h' e where
 withSubContext :: (In h e) => (SubContext h -> Ctl a) -> Eff e a
 withSubContext f
   = Eff (\ctx -> f (subContext ctx))
-
-
-------------------------------------------------------------------------
--- Allow giving closed type signature (like `State Int :* Amb :* ()`)
--- and later open it up in another context
-------------------------------------------------------------------------
-{-
-class Sub e1 e2 where
-  open :: Eff e1 a -> Eff e2 a
-
-instance Sub () e where
-  open eff = Eff $ \w -> under CNil eff
-
-instance (SubH h, Sub e1 e2) => Sub (h :* e1) (h :* e2) where
-  open eff = Eff $ \(CCons m h ctx) ->
-    under ctx $ open (Eff $ \subctx -> under (CCons m (subH ctx h) subctx) eff)
-
-{-
-openOp :: (Sub e1 e2) => Context e2 -> Op a b e2 ans -> Op a b e1 ans
-openOp w (Op f) = Op $ \a g ->
-                  Eff $ \_ -> under w $ f a (\b -> open (g b))
--}
--- openOp w (Tail f)   = Tail $ \a ->
---                        Eff $ \_ -> under w (f a)
-
-class SubH h where
-  subH :: Sub e1 e2  => Context e2 -> h e2 a -> h e1 a
--}
 
 
 ------------------------------------

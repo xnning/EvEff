@@ -31,10 +31,10 @@ library:
   ghc-options:
     - -O2 -fspec-constr-keen
   
-executables:
+benchmarks:
   TestState:
+    source-dirs:         benchmark
     main:                TestState.hs
-    source-dirs:         app
     ghc-options:
     - -main-is TestState
     - -O2
@@ -48,8 +48,8 @@ executables:
     - fused-effects
 
   TestError:
+    source-dirs:         benchmark
     main:                TestError.hs
-    source-dirs:         app
     ghc-options:
     - -main-is TestError
     - -O2 
@@ -62,21 +62,9 @@ executables:
     - extensible-effects
     - fused-effects
 
-  # ProfState:
-  #   main:                TestState.hs
-  #   source-dirs:         app
-  #   ghc-options:
-  #   - -Wno-simplifiable-class-constraints
-  #   - -main-is TestState
-  #   - -O3
-  #   - -fforce-recomp
-  #   - -ddump-simpl -dsuppress-idinfo -dsuppress-coercions -dsuppress-type-applications -dsuppress-uniques -dsuppress-module-prefixes -ddump-to-file
-  #   dependencies:
-  #   - eveff
-
   TestLayer:
+    source-dirs:         benchmark
     main:                TestLayer.hs
-    source-dirs:         app
     ghc-options:
     - -main-is TestLayer
     - -O2
@@ -90,8 +78,8 @@ executables:
     - fused-effects
 
   TestPyth:
+    source-dirs:         benchmark
     main:                TestPyth.hs
-    source-dirs:         app
     ghc-options:
     - -main-is TestPyth
     - -O2

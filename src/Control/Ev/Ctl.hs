@@ -167,38 +167,3 @@ unsafePromptIORef init action
   = freshMarker $ \m ->
     do r <- unsafeIO (newIORef init)
        mpromptIORef r (action m r)
-
-
-{-
-{-# INLINE mlocalGet #-}
-mlocalGet :: Local a -> b -> Ctl a
-mlocalGet (Local r) x = unsafeIO (seq x $ readIORef r)
-
-{-# INLINE mlocalSet #-}
-mlocalSet :: Local a -> a -> Ctl ()
-mlocalSet (Local r) x = unsafeIO (writeIORef r x)
-
-
-localOutOfScope :: Local a -> Ctl a
-localOutOfScope local
-  =  do x <- mlocalGet local ()
-        -- mlocalSet local (error "local state is accessed outside its scope")
-        return x
-
-mlocal :: a -> (Local a -> Ctl b) -> Ctl b
-mlocal init action
-  = do ref <- unsafeIO (newIORef init)
-       let local = Local ref
-       plocal local (action local)
-
-plocal :: Local a -> Ctl b -> Ctl b
-plocal local action
-  = case action of
-      Pure x -> do localOutOfScope local
-                   pure x
-      Yield m op cont
-        -> do val <- localOutOfScope local            -- save current value
-              let cont' x = do mlocalSet local val    -- restore saved value on resume
-                               plocal local (cont x)
-              Yield m op cont'
--}
