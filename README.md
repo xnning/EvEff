@@ -1,6 +1,6 @@
 # EvEff: Efficient effect handlers based on Evidence translation
 
-Efficient effect handlers based on Evidence translation. The implementation
+Efficient effect handlers based on evidence translation. The implementation
 is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020 
 [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-evidently),
 and the interface and design is described in detail in 

@@ -11,15 +11,14 @@ extra-source-files:
 - ChangeLog.md
 
 # Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
+synopsis:            Efficient effect handlers based on evidence translation.
+category:            Control, Effect
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
 description:
-  See the "Control.Ev.Eff" module for further information
-  (or the README on GitHub at <https://github.com/xnning/eveff#readme>).
+  See the "Control.Ev.Eff" module or README.md for further information
 
 
 dependencies:
