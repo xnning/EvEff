@@ -7,18 +7,6 @@ and the interface and design is described in detail in
 /"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020 
 [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-in-haskell-evidently).
 
-Installation:
-
-* First install [stack](https://docs.haskellstack.org)
-* Build with `> stack build`
-* Load examples:
-  ```
-  > stack ghci eveff:lib
-  ..
-  ghci> runEff helloWorld
-  "hello world" 
-  ```
-
 An example of defining and using a `Reader` effect:
 
 ```Haskell
