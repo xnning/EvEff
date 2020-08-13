@@ -78,7 +78,7 @@ layerST :: Integer -> Integer
 layerST n
   = runST (do r <- newSTRef (0::Integer)
               countST r n)
-              
+
 -------------------------------------------------------
 -- MONADIC
 -------------------------------------------------------
@@ -135,7 +135,7 @@ layerUnderMonadic6 n =
   flip Mr.runReaderT (True,True) $
   Ms.runStateT (monadic n) 0
 
--- LAYER UNDER
+-- LAYER OVER
 
 layerOverMonadic1 n =
     flip Ms.runState 0 $
@@ -236,7 +236,8 @@ layerUnderEE6 n = EE.run $
   EEr.runReader 'c' $
   EEr.runReader (True,True) $
     EEs.runState (0::Integer) (ee n)
--- LAYER UNDER
+
+-- LAYER OVER
 
 layerOverEE1 n = EE.run $
   EEs.runState (0::Integer) $
@@ -336,7 +337,7 @@ layerUnderF6 n = F.run $
   Fr.runReader (True,True) $
     Fs.runState (0::Integer) (fe n)
 
--- LAYER UNDER
+-- LAYER OVER
 
 layerOverF1 n = F.run $
   Fs.runState (0::Integer) $
