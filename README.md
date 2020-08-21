@@ -1,11 +1,9 @@
 # EvEff: Efficient effect handlers based on Evidence translation
 
-Efficient effect handlers based on evidence translation. The implementation
-is based on /"Effect Handlers, Evidently"/, Ningning Xie /et al./, ICFP 2020 
-[(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-evidently),
-and the interface and design is described in detail in 
-/"Effect Handlers in Haskell, Evidently"/, Ningning Xie and Daan Leijen, Haskell 2020 
-[(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-in-haskell-evidently).
+Efficient effect handlers based on evidence translation [1]. 
+The interface and design is described in detail in 
+"[_Effect Handlers in Haskell, Evidently_](https://www.microsoft.com/en-us/research/publication/effect-handlers-in-haskell-evidently)", 
+Ningning Xie and Daan Leijen, Haskell 2020.
 
 An example of defining and using a `Reader` effect:
 
@@ -29,3 +27,6 @@ test = runEff $
 
 Enjoy,  
   Daan Leijen and Ningning Xie,  May 2020.
+
+
+[1] "_Effect Handlers, Evidently_", Ningning Xie _et al._, ICFP 2020  [(pdf)](https://www.microsoft.com/en-us/research/publication/effect-handlers-evidently).
