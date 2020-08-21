@@ -22,7 +22,7 @@ test :: String
 test = runEff $
        handler (Reader{ ask = value "world" }) $  -- @:: Reader String () Int@
        do s <- greet                              -- executes in context @:: Eff (Reader String :* ()) Int@
-          return (length s)
+          return s
 ```
 
 Enjoy,  
