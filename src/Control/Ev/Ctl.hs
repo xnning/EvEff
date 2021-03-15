@@ -59,10 +59,12 @@ mmatch (Marker i) (Marker j) | i == j  = Just (unsafeCoerce Refl)
 mmatch _ _ = Nothing
 
 -- global unique counter
+{-# NOINLINE unique#-}
 unique :: IORef Integer
 unique = unsafePerformIO (newIORef 0)
 
 -- evaluate a action with a fresh marker
+{-# NOINLINE freshMarker #-}
 freshMarker :: (Marker a -> Ctl a) -> Ctl a
 freshMarker f
   = let m = unsafePerformIO $
