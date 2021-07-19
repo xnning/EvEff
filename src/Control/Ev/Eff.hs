@@ -374,17 +374,17 @@ newtype Local a e ans = Local (IORef a)
 -- | Get the value of the local state.
 {-# INLINE lget #-}
 lget :: Local a e ans -> Op () a e ans
-lget (Local r) = Op (\m ctx x -> unsafeIO (seq x $ readIORef r))
+lget (Local r) = Op (\m ctx x -> safeIO (seq x $ readIORef r))
 
 -- | Set the value of the local state.
 {-# INLINE lput #-}
 lput :: Local a e ans -> Op a () e ans
-lput (Local r) = Op (\m ctx x -> unsafeIO (writeIORef r x))
+lput (Local r) = Op (\m ctx x -> safeIO (writeIORef r x))
 
 -- | Update the value of the local state.
 {-# INLINE lmodify #-}
 lmodify :: Local a e ans -> Op (a -> a) () e ans
-lmodify (Local r) = Op (\m ctx f -> unsafeIO (do{ x <- readIORef r; writeIORef r $! (f x) }))
+lmodify (Local r) = Op (\m ctx f -> safeIO (do{ x <- readIORef r; writeIORef r $! (f x) }))
 
 -- | Get the value of the local state if it is the top handler.
 localGet :: Eff (Local a :* e) a
@@ -403,9 +403,9 @@ localModify f = perform lmodify f
 {-# INLINE localRet #-}
 localRet :: a -> (ans -> a -> b) -> Eff (Local a :* e) ans -> Eff e b
 localRet init ret action
-  = Eff (\ctx -> unsafePromptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
+  = Eff (\ctx -> safePromptIORef init $ \m r ->  -- set a fresh prompt with marker `m`
                  do x <- under (CCons m (Local r) CTId ctx) action -- and call action with the extra evidence
-                    y <- unsafeIO (readIORef r)
+                    y <- safeIO (readIORef r)
                     return (ret x y))
 
 -- | Create a local state handler with an initial state of type @a@.
