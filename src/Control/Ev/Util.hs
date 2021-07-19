@@ -24,6 +24,7 @@ module Control.Ev.Util
   , catchError, exceptEither, exceptMaybe, exceptDefault
     -- * Choice
   , Choose(Choose,none,choose)
+  , none'
   , chooseFirst, chooseAll
 ) where
 
@@ -130,6 +131,9 @@ data Choose e ans = Choose { none   :: !(forall a. Op () a e ans)  -- ^ @`perfor
                            , choose :: !(Op Int Int e ans)         -- ^ @`perform` choose n` resumes up to @n@ times (returning @1@ up to @n@)
                            }
 
+none' :: Choose e ans -> Op () a e ans
+none' choose = none choose
+
 
 -- | Return the first result found in a computation using `choose` for backtracking.
 chooseFirst :: Eff (Choose :* e) ans -> Eff e (Maybe ans)
@@ -157,11 +161,11 @@ chooseAll
           }
 
 instance (Choose :? e) => Alternative (Eff e) where
-  empty      = perform none ()
+  empty      = perform none' ()
   m1 <|> m2  = do x <- perform choose 2
                   if (x==1) then m1 else m2
 
 instance (Choose :? e) => MonadPlus (Eff e) where
-  mzero       = perform none ()
+  mzero       = perform none' ()
   mplus m1 m2 = do x <- perform choose 2
                    if (x==1) then m1 else m2
